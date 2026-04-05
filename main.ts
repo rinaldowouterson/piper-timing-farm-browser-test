@@ -1,4 +1,4 @@
-import { createPiperProvider, type PiperWorkerFarm } from 'piper-timing-farm-browser';
+import { createPiperProvider } from 'piper-timing-farm-browser';
 import { TEST_BATTERY } from './expose-sentences-test';
 import { playRawAudio, stopAudio } from './process-audio-playback';
 
@@ -15,8 +15,15 @@ const logEl = document.getElementById('log')!;
 const metricQueue = document.getElementById('metricQueue')!;
 const metricBusy = document.getElementById('metricBusy')!;
 const metricActiveModel = document.getElementById('metricActiveModel')!;
+const downloadList = document.getElementById('download-list')!;
+const speakerIdSelect = document.getElementById('speakerIdSelect') as HTMLInputElement;
+const totalQueuedEl = document.getElementById('totalQueued')!;
+const totalDoneEl = document.getElementById('totalDone')!;
 
-let provider: (PiperWorkerFarm & { getActiveModelId: () => string | null, clearPiperModelCache: () => Promise<void> }) | null = null;
+let totalQueued = 0;
+let totalDone = 0;
+
+let provider: ReturnType<typeof createPiperProvider> | null = null;
 let audioCtx: AudioContext | null = null;
 let chaosInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -53,15 +60,20 @@ async function initProvider() {
 
 // Logic: Create a "Result Card" in UI
 function createResultCard(text: string) {
+  const indexMatch = text.match(/\[#(\d+)\]/);
+  const indexStr = indexMatch ? indexMatch[1] : '?';
+  
   const card = document.createElement('div');
   card.className = 'result-card pending';
   card.innerHTML = `
-    <div style="font-size: 0.75rem; margin-bottom: 0.25rem;">
-      <span class="tag">PENDING</span>
-      <span class="tag model-tag">?</span>
+    <div class="metadata-grid">
+      <div class="value">#${indexStr}</div>
+      <div class="tag model-tag">PENDING</div>
+      <div class="value speaker-tag">-</div>
+      <div class="value time-tag">-</div>
     </div>
-    <div class="text-preview" style="font-size: 0.8rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
-      ${text}
+    <div class="text-preview" style="font-size: 0.8rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #8b949e;">
+      ${text.replace(/\[#\d+\]\s*/, '')}
     </div>
   `;
   resultList.prepend(card);
@@ -72,25 +84,36 @@ function createResultCard(text: string) {
 async function queueSynthesis(text: string, card: HTMLElement) {
   if (!provider || !audioCtx) return;
   
+  const speakerId = parseInt(speakerIdSelect.value) || 0;
+  
   card.classList.replace('pending', 'active');
-  const tagEl = card.querySelector('.model-tag')!;
-  tagEl.textContent = 'QUEUING...';
+  const modelTag = card.querySelector('.model-tag')!;
+  const speakerTag = card.querySelector('.speaker-tag')!;
+  const timeTag = card.querySelector('.time-tag')!;
+  
+  modelTag.textContent = 'WAITING...';
 
   try {
-    const result = await provider.synthesize(text);
+    const result = await provider.synthesize(text, { speakerId });
     
+    totalDone++;
+    totalDoneEl.textContent = totalDone.toString();
+
     card.classList.replace('active', 'done');
-    tagEl.textContent = result.metadata.modelId ?? 'unknown';
-    tagEl.classList.add(result.metadata.modelId?.includes('uk') ? 'uk' : 'en');
     
-    log(`Result Ready (${result.metadata.modelId}): ${text.slice(0, 20)}...`, 'success');
+    modelTag.textContent = result.metadata.modelId ?? 'unknown';
+    modelTag.classList.add(result.metadata.modelId?.includes('uk') ? 'uk' : 'en');
     
-    // Auto-play in sequence if nothing else is playing (simple FIFO audio)
+    speakerTag.textContent = `SID: ${result.metadata.speakerId ?? speakerId}`;
+    timeTag.textContent = `${Math.round(result.metadata.generationTimeMs ?? 0)}ms`;
+
+    log(`[#${totalDone}] Result Ready: ${result.metadata.modelId} (SID:${result.metadata.speakerId})`, 'success');
+    
     playRawAudio(result.audioData, audioCtx);
     
   } catch (err) {
     card.style.borderColor = 'var(--danger)';
-    tagEl.textContent = 'FAILED';
+    modelTag.textContent = 'FAILED';
     log(`Synthesis Error: ${err instanceof Error ? err.message : String(err)}`, 'error');
   }
 }
@@ -101,17 +124,22 @@ async function runBarrage() {
     await initProvider();
   }
   
-  resultList.innerHTML = ''; // Clear prior results
-  log(`🔥 STARTING BARRAGE: 200+ fire-and-forget requests (100 EN + 100 UK)...`, 'warning');
+  resultList.innerHTML = ''; 
+  totalDone = 0;
+  totalDoneEl.textContent = '0';
   
   const pool = [
     ...TEST_BATTERY.LONG_PARAGRAPHS_EN,
     ...TEST_BATTERY.LONG_PARAGRAPHS_UK
   ];
+  
+  totalQueued = pool.length;
+  totalQueuedEl.textContent = totalQueued.toString();
 
+  log(`🔥 STARTING BARRAGE: ${pool.length} fire-and-forget requests...`, 'warning');
+  
   pool.forEach(text => {
     const card = createResultCard(text);
-    // Fire and Forget
     queueSynthesis(text, card);
   });
 }
@@ -148,8 +176,36 @@ setInterval(() => {
     metricQueue.textContent = m.queueLength.toString();
     metricBusy.textContent = m.busyWorkers.toString();
     metricActiveModel.textContent = provider.getActiveModelId() || 'None';
+    
+    updateDownloadUI();
   }
 }, 300);
+
+function updateDownloadUI() {
+  if (!provider) return;
+  const states = provider.getDownloadState();
+  if (states.size === 0) {
+    downloadList.innerHTML = '<div style="color: #8b949e; font-size: 0.75rem; text-align: center;">No active downloads.</div>';
+    return;
+  }
+
+  let html = '';
+  states.forEach((s, id) => {
+    const pct = Math.round(s.progress * 100);
+    html += `
+      <div class="download-item">
+        <div class="download-info">
+          <span>${id.split('-')[1]} (${s.state})</span>
+          <span>${pct}%</span>
+        </div>
+        <div class="progress-container">
+          <div class="progress-bar" style="width: ${pct}%"></div>
+        </div>
+      </div>
+    `;
+  });
+  downloadList.innerHTML = html;
+}
 
 // Event Listeners
 btnInit.onclick = initProvider;

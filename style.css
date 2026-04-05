@@ -153,3 +153,42 @@ select, input {
 .log-entry.info { color: #58a6ff; }
 .log-entry.success { color: #3fb950; }
 .log-entry.error { color: #f85149; }
+
+/* Progress Bars & Downloads */
+.download-item {
+  background: #010409;
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  border-radius: 6px;
+}
+.download-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  margin-bottom: 0.3rem;
+  color: #8b949e;
+}
+.progress-container {
+  height: 4px;
+  background: #21262d;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+/* Metadata Grid for Cards */
+.metadata-grid {
+  display: grid;
+  grid-template-columns: 30px 1fr 60px 80px;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.7rem;
+  color: #8b949e;
+  margin-bottom: 0.5rem;
+}
+.metadata-grid .value { color: var(--text); font-weight: 600; }
+.metadata-grid .tag { margin: 0; text-align: center; }

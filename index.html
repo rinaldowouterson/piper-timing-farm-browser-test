@@ -3,24 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Piper Timing Farm: Consumer Test</title>
-  <style>
-    body { font-family: sans-serif; padding: 2rem; background: #f4f4f4; }
-    h1 { color: #333; }
-    .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    button { padding: 0.75rem 1.5rem; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    button:disabled { background: #ccc; }
-    #status { margin-top: 1rem; font-family: monospace; color: #666; }
-    #phonemes { margin-top: 1rem; padding: 1rem; background: #eee; border-left: 4px solid #007bff; font-family: monospace; font-size: 0.9rem; }
-  </style>
+  <title>Piper Timing Farm: Asshole-Proof Testbed</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="card">
-    <h1>Piper Timing Farm: Testbed</h1>
-    <p>This app verifies the "Standalone Dist" and "Horizontal CPU Scaling" models.</p>
-    <button id="btn">Synthesize "Hello World"</button>
-    <div id="status">Ready.</div>
-    <div id="phonemes"></div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="card">
+        <h2>System Control</h2>
+        <div class="controls-group">
+          <button id="btnInit">Initialize Provider</button>
+          <button id="btnStop" class="danger">Emergency Stop</button>
+          <button id="synth-btn">Synthesize</button>
+          <button id="clear-cache-btn" style="background: #e74c3c;">Clear Model Cache</button>
+        </div>
+        <div id="status">Ready.</div>
+        
+        <h2>Settings Panel</h2>
+        <div class="controls-group">
+          <label for="modelSelect">Hotswap Speaker</label>
+          <select id="modelSelect">
+            <option value="en_US-bryce-medium">Bryce (English)</option>
+            <option value="uk_UA-ukrainian_tts-medium">Ukrainian (Multi-Speaker)</option>
+            <option value="en_GB-cori-medium">Cori (British English)</option>
+          </select>
+          <small style="font-size: 0.7rem; color: #8b949e;">Changing this mid-queue triggers an "Asshole-Proof" hotswap.</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Testing Tools</h2>
+        <div class="controls-group">
+          <button id="btnBarrage" class="warning">🔥 Fire & Forget (Barrage)</button>
+          <button id="btnChaos" class="secondary">🌀 Chaos Mode</button>
+        </div>
+        <div id="chaosStatus" style="font-size: 0.8rem; text-align: center; font-weight: bold; color: var(--warning);"></div>
+      </div>
+
+      <div class="card">
+        <h2>Live Metrics</h2>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Queue</div>
+            <div id="metricQueue" class="metric-value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Busy</div>
+            <div id="metricBusy" class="metric-value">0</div>
+          </div>
+          <div class="metric" style="grid-column: span 2;">
+            <div class="metric-label">Active Model</div>
+            <div id="metricActiveModel" class="metric-value" style="font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">None</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); margin-bottom: 1rem; padding-bottom: 0.5rem;">
+          <h2 style="margin: 0; border: none;">Queue Execution Proofs</h2>
+          <div style="font-size: 0.7rem; color: #8b949e;">
+            <span>TOTAL: <span id="totalQueued">0</span></span> | 
+            <span>DONE: <span id="totalDone">0</span></span>
+          </div>
+        </div>
+        <div id="resultList" class="result-list">
+          <div style="color: #8b949e; text-align: center; padding: 2rem;">No synthesis tasks in queue.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>System Logs</h2>
+        <div id="log" class="log-container">
+          <div class="log-entry info">Testbed Ready. Select a model or start a barrage.</div>
+        </div>
+      </div>
+    </main>
   </div>
   <script type="module" src="/main.ts"></script>
 </body>

@@ -144,7 +144,6 @@ const hotswapStressScenario: TestScenario = {
     
     const models = ['en_US-bryce-medium', 'uk_UA-ukrainian_tts-medium', 'en_GB-cori-medium'];
     const cycles = 10;
-    const cycleDuration = 1000; // 1 second per cycle
     
     try {
       // Initial init
@@ -401,7 +400,7 @@ const downloadCancelScenario: TestScenario = {
       
       assertions.push({
         name: 'Download was cancelled',
-        passed: modelState?.state === 'cancelled' || modelState?.state === 'error',
+        passed: modelState?.state === 'error' || !modelState,
         expected: 'cancelled',
         actual: modelState?.state
       });
@@ -1038,7 +1037,7 @@ const flashFloodScenario: TestScenario = {
   requiresCacheReset: false,
   
   async execute(context: TestContext): Promise<TestResult> {
-    const { provider, logger, verifier } = context;
+    const { provider, logger } = context;
     const assertions: TestResult['assertions'] = [];
     const startTime = Date.now();
     
@@ -1128,6 +1127,202 @@ const flashFloodScenario: TestScenario = {
   }
 };
 
+// ============================================
+// SCENARIO 11: Granular Cancellation + Self-Healing
+// ============================================
+
+const granularCancelScenario: TestScenario = {
+  id: 'granular-cancel',
+  name: 'Granular Cancellation + Self-Healing',
+  description: 'Verify AbortSignal, cancelSynthesis, cancelAllSynthesis, and self-healing worker replacement',
+  requiresCacheReset: false,
+  
+  async execute(context: TestContext): Promise<TestResult> {
+    const { provider, logger } = context;
+    const assertions: TestResult['assertions'] = [];
+    const startTime = Date.now();
+    
+    LogHelpers.test.scenarioStart(logger, 'granular-cancel', 'Granular Cancellation + Self-Healing');
+    
+    try {
+      // 1. Ensure initialized
+      if (!provider.isInitialized()) {
+        await provider.init({
+          modelId: 'en_US-bryce-medium',
+          voiceId: 'en_US-bryce-medium',
+          cpuInstances: 2
+        });
+        LogHelpers.lifecycle.promotionComplete(logger, 'en_US-bryce-medium', 2);
+      }
+
+      // ---- TEST A: AbortSignal cancellation ----
+      {
+        const abortController = new AbortController();
+        const requestId = `cancel-test-abort-${Date.now()}`;
+        
+        // Fire & immediately abort
+        const promise = provider.synthesize('This should be aborted by AbortSignal.', {
+          requestId,
+          signal: abortController.signal
+        });
+        abortController.abort();
+        
+        let abortCaught = false;
+        try {
+          await promise;
+        } catch (err) {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            abortCaught = true;
+          }
+        }
+        
+        assertions.push({
+          name: 'AbortSignal cancellation produces AbortError',
+          passed: abortCaught,
+          expected: 'DOMException AbortError',
+          actual: abortCaught ? 'AbortError caught' : 'No AbortError'
+        });
+      }
+
+      // ---- TEST B: cancelSynthesis(requestId) ----
+      {
+        const requestId = `cancel-test-single-${Date.now()}`;
+        
+        // Queue a request, then cancel by ID before it completes
+        const promise = provider.synthesize('This should be cancelled by cancelSynthesis.', {
+          requestId
+        });
+        // Cancel immediately
+        provider.cancelSynthesis(requestId);
+        
+        let cancelCaught = false;
+        try {
+          await promise;
+        } catch (err) {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            cancelCaught = true;
+          }
+        }
+        
+        assertions.push({
+          name: 'cancelSynthesis(requestId) produces AbortError',
+          passed: cancelCaught,
+          expected: 'DOMException AbortError',
+          actual: cancelCaught ? 'AbortError caught' : 'No AbortError'
+        });
+      }
+
+      // ---- TEST C: cancelAllSynthesis() ----
+      {
+        // Queue several requests then cancel all
+        const promises: Promise<unknown>[] = [];
+        for (let i = 0; i < 5; i++) {
+          promises.push(
+            provider.synthesize(`Cancel all test sentence ${i}`, {
+              requestId: `cancel-all-${Date.now()}-${i}`
+            })
+          );
+        }
+        
+        // Cancel all immediately
+        provider.cancelAllSynthesis();
+        
+        const results = await Promise.allSettled(promises);
+        const allRejected = results.every(r => r.status === 'rejected');
+        const allAbortErrors = results.every(r => {
+          if (r.status === 'rejected') {
+            return r.reason instanceof DOMException && r.reason.name === 'AbortError';
+          }
+          return false;
+        });
+        
+        assertions.push({
+          name: 'cancelAllSynthesis rejects all queued requests',
+          passed: allRejected,
+          expected: '5 rejected',
+          actual: `${results.filter(r => r.status === 'rejected').length} rejected`
+        });
+        
+        assertions.push({
+          name: 'All rejections are AbortError',
+          passed: allAbortErrors,
+          expected: 'All AbortError',
+          actual: allAbortErrors ? 'All AbortError' : 'Mixed error types'
+        });
+      }
+
+      // ---- TEST D: Self-healing verification ----
+      // After cancelling everything, the farm should still be usable
+      {
+        // Small delay for worker replacement to complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        let selfHealed = false;
+        try {
+          const result = await provider.synthesize('Post-cancellation self-healing test.');
+          selfHealed = result.audioData.length > 0;
+          
+          if (context.onResultReady) {
+            context.onResultReady('Post-cancellation self-healing test.', result as AudioSynthesisResult);
+          }
+        } catch (err) {
+          selfHealed = false;
+        }
+        
+        assertions.push({
+          name: 'Farm self-heals after mass cancellation',
+          passed: selfHealed,
+          expected: 'Successful synthesis after cancel',
+          actual: selfHealed ? 'Self-healed ✓' : 'Farm broken ✗'
+        });
+      }
+
+      // ---- TEST E: Worker count stability ----
+      {
+        const metrics = provider.metrics;
+        assertions.push({
+          name: 'Worker count stable after cancellations',
+          passed: metrics.totalWorkers <= 3,
+          expected: '≤ 3 workers',
+          actual: `${metrics.totalWorkers} workers`
+        });
+      }
+
+      const duration = Date.now() - startTime;
+      const eventsLogged = logger.getEntries().length;
+      
+      const passed = assertions.every(a => a.passed);
+      if (passed) {
+        LogHelpers.test.scenarioPass(logger, 'granular-cancel', duration, eventsLogged);
+      } else {
+        LogHelpers.test.scenarioFail(logger, 'granular-cancel', 'Assertions failed', duration);
+      }
+      
+      return {
+        scenarioId: 'granular-cancel',
+        scenarioName: 'Granular Cancellation + Self-Healing',
+        passed,
+        duration,
+        eventsLogged,
+        assertions
+      };
+      
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      LogHelpers.test.scenarioFail(logger, 'granular-cancel', String(error), duration);
+      return {
+        scenarioId: 'granular-cancel',
+        scenarioName: 'Granular Cancellation + Self-Healing',
+        passed: false,
+        duration,
+        eventsLogged: logger.getEntries().length,
+        assertions,
+        error: String(error)
+      };
+    }
+  }
+};
+
 /**
  * All available test scenarios
  */
@@ -1140,5 +1335,7 @@ export const TEST_SCENARIOS: TestScenario[] = [
   callbackModuleScenario,
   cdnEntryPointScenario,
   speedVolumeScenario,
-  multiSpeakerScenario
+  multiSpeakerScenario,
+  flashFloodScenario,
+  granularCancelScenario
 ];

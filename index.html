@@ -9,9 +9,70 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    /* Additional styles for Integrated verification orchestrator */
+    /* ================ State-Aware Buttons ================ */
+    .btn-group-chrono {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .btn-group-chrono button {
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-group-chrono button .step-badge {
+      position: absolute;
+      left: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      font-size: 0.6rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.15);
+    }
+    .btn-group-chrono button.active-step {
+      box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(88,166,255,0.3);
+    }
+
+    /* ================ Cancel Zone ================ */
+    .cancel-zone {
+      background: rgba(248, 81, 73, 0.06);
+      border: 1px solid rgba(248, 81, 73, 0.25);
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+    .cancel-zone.visible { display: block; }
+    .cancel-zone h3 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.75rem;
+      color: var(--danger);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .cancel-zone .cancel-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .cancel-zone button {
+      font-size: 0.75rem;
+      padding: 0.4rem 0.75rem;
+    }
+
+    /* ================ Result Card States ================ */
     .result-card.active { border-color: var(--warning) !important; background: rgba(243, 156, 18, 0.1); }
     .result-card.done { border-color: var(--success); }
+    .result-card.cancelled {
+      border-color: var(--danger) !important;
+      background: rgba(248, 81, 73, 0.05);
+      opacity: 0.6;
+    }
     .result-card.now-playing { 
       border-color: #3498db !important; 
       box-shadow: 0 0 20px rgba(52, 152, 219, 0.6);
@@ -24,328 +85,144 @@
       50% { transform: scale(1.01); box-shadow: 0 0 25px rgba(52, 152, 219, 0.7); }
       100% { transform: scale(1); box-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
     }
-    .toggle-container input { width: auto !important; margin: 0; }
-    
-    /* Test scenario buttons */
+
+    /* ================ Test Scenario Grid ================ */
     .test-scenario-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 0.5rem;
     }
-    
     .test-btn {
       padding: 0.5rem;
       font-size: 0.75rem;
       border: 1px solid var(--border);
-      background: var(--bg-secondary);
+      background: var(--bg-secondary, #161b22);
       color: var(--text);
       border-radius: 4px;
       cursor: pointer;
       transition: all 0.2s;
       text-align: left;
     }
-    
-    .test-btn:hover {
-      background: var(--bg-tertiary);
-      border-color: var(--accent);
-    }
-    
-    .test-btn.running {
-      background: rgba(243, 156, 18, 0.2);
-      border-color: var(--warning);
-    }
-    
-    .test-btn.passed {
-      background: rgba(46, 204, 113, 0.2);
-      border-color: var(--success);
-    }
-    
-    .test-btn.failed {
-      background: rgba(231, 76, 60, 0.2);
-      border-color: var(--danger);
-    }
-    
-    .test-btn .test-name {
-      font-weight: 600;
-      display: block;
-    }
-    
-    .test-btn .test-desc {
-      font-size: 0.65rem;
-      color: #8b949e;
-    }
-    
-    .test-btn .test-status {
-      font-size: 0.6rem;
-      margin-top: 0.25rem;
-      color: #8b949e;
-    }
-    
-    /* Log filter bar */
+    .test-btn:hover { background: rgba(88,166,255,0.08); border-color: var(--accent); }
+    .test-btn.running { background: rgba(243, 156, 18, 0.2); border-color: var(--warning); }
+    .test-btn.passed { background: rgba(46, 204, 113, 0.2); border-color: var(--success); }
+    .test-btn.failed { background: rgba(231, 76, 60, 0.2); border-color: var(--danger); }
+    .test-btn .test-name { font-weight: 600; display: block; }
+    .test-btn .test-desc { font-size: 0.65rem; color: #8b949e; }
+    .test-btn .test-status { font-size: 0.6rem; margin-top: 0.25rem; color: #8b949e; }
+
+    /* ================ Log System ================ */
     .log-filter-bar {
-      display: flex;
-      gap: 0.25rem;
-      padding: 0.5rem;
-      background: var(--bg-secondary);
-      border-bottom: 1px solid var(--border);
-      flex-wrap: wrap;
+      display: flex; gap: 0.25rem; padding: 0.5rem;
+      background: var(--card); border-bottom: 1px solid var(--border); flex-wrap: wrap;
     }
-    
     .log-filter-btn {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.7rem;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: #8b949e;
-      border-radius: 3px;
-      cursor: pointer;
-      transition: all 0.2s;
+      padding: 0.25rem 0.5rem; font-size: 0.7rem;
+      border: 1px solid var(--border); background: transparent;
+      color: #8b949e; border-radius: 3px; cursor: pointer; transition: all 0.2s;
     }
-    
-    .log-filter-btn:hover {
-      background: var(--bg-tertiary);
+    .log-filter-btn:hover { background: rgba(88,166,255,0.08); }
+    .log-filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .log-entry-wrapper { border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+    .log-entry-collapsed { padding: 0.25rem 0.5rem; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: background 0.1s; }
+    .log-entry-collapsed:hover { background: rgba(255,255,255,0.02); }
+    .log-time { color: #6c757d; font-size: 0.7rem; }
+    .log-category { font-weight: 600; font-size: 0.65rem; }
+    .log-level { font-size: 0.6rem; padding: 0 0.25rem; border-radius: 2px; }
+    .log-event { color: var(--text); }
+    .log-expand-icon { margin-left: auto; color: #6c757d; font-size: 0.6rem; }
+    .log-entry-expanded { padding: 0.5rem; background: rgba(0,0,0,0.2); border-top: 1px solid var(--border); }
+    .log-detail-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+    .log-detail-key { color: #8b949e; width: 30%; padding: 0.125rem 0; vertical-align: top; }
+    .log-detail-value { color: var(--text); word-break: break-all; }
+    .log-count { padding: 0.5rem; text-align: center; font-size: 0.7rem; color: #8b949e; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); }
+
+    /* ================ Synth Controls ================ */
+    .synth-options {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;
     }
-    
-    .log-filter-btn.active {
-      background: var(--accent);
-      color: white;
-      border-color: var(--accent);
+    .synth-options label { font-size: 0.7rem; color: #8b949e; }
+    .synth-options input[type="range"] { width: 100%; }
+    .synth-options .value-display { font-size: 0.65rem; color: var(--text); text-align: right; }
+    .toggle-container input { width: auto !important; margin: 0; }
+
+    /* ================ Audit Table ================ */
+    .audit-row { border-bottom: 1px solid var(--border); transition: background 0.2s; }
+    .audit-row:hover { background: rgba(255,255,255,0.02); }
+    .audit-row td { padding: 0.6rem 0.5rem; vertical-align: middle; }
+    .play-btn, .cancel-row-btn {
+      color: white; border: none; padding: 0.2rem 0.6rem; border-radius: 4px;
+      font-size: 0.65rem; cursor: pointer; display: flex; align-items: center; gap: 3px; margin: 0 auto;
     }
-    
-    /* Log entry styles */
-    .log-entry-wrapper {
-      border-bottom: 1px solid var(--border);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.75rem;
-    }
-    
-    .log-entry-collapsed {
-      padding: 0.25rem 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      cursor: pointer;
-      transition: background 0.1s;
-    }
-    
-    .log-entry-collapsed:hover {
-      background: var(--bg-secondary);
-    }
-    
-    .log-time {
-      color: #6c757d;
-      font-size: 0.7rem;
-    }
-    
-    .log-category {
-      font-weight: 600;
-      font-size: 0.65rem;
-    }
-    
-    .log-level {
-      font-size: 0.6rem;
-      padding: 0 0.25rem;
-      border-radius: 2px;
-    }
-    
-    .log-event {
-      color: var(--text);
-    }
-    
-    .log-expand-icon {
-      margin-left: auto;
-      color: #6c757d;
-      font-size: 0.6rem;
-    }
-    
-    .log-entry-expanded {
-      padding: 0.5rem;
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-    }
-    
-    .log-detail-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.7rem;
-    }
-    
-    .log-detail-key {
-      color: #8b949e;
-      width: 30%;
-      padding: 0.125rem 0;
-      vertical-align: top;
-    }
-    
-    .log-detail-value {
-      color: var(--text);
-      word-break: break-all;
-    }
-    
-    .log-count {
-      padding: 0.5rem;
-      text-align: center;
-      font-size: 0.7rem;
-      color: #8b949e;
-      background: var(--bg-secondary);
-      border-bottom: 1px solid var(--border);
-    }
-    
-    /* Test results panel */
-    .test-results-panel {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      margin-bottom: 1rem;
-    }
-    
-    .test-results-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.5rem;
-      border-bottom: 1px solid var(--border);
-    }
-    
-    .test-results-summary {
-      display: flex;
-      gap: 1rem;
-      font-size: 0.75rem;
-    }
-    
+    .play-btn { background: var(--accent); }
+    .cancel-row-btn { background: var(--danger); font-size: 0.6rem; }
+    .play-btn:hover, .cancel-row-btn:hover { opacity: 0.9; }
+    .play-btn:disabled, .cancel-row-btn:disabled { background: #444; cursor: not-allowed; }
+    .sentence-cell { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8b949e; }
+    .sentence-cell:hover { white-space: normal; word-break: break-word; color: var(--text); }
+    #manualText:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2); }
+
+    /* ================ Test Results ================ */
+    .test-results-panel { background: var(--card); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 1rem; }
+    .test-results-header { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border); }
+    .test-results-summary { display: flex; gap: 1rem; font-size: 0.75rem; }
     .test-results-summary .passed { color: var(--success); }
     .test-results-summary .failed { color: var(--danger); }
     .test-results-summary .pending { color: #8b949e; }
-    
-    /* Export button */
-    .export-btn {
-      padding: 0.25rem 0.5rem;
-      font-size: 0.7rem;
-      background: var(--accent);
-      color: white;
-      border: none;
-      border-radius: 3px;
-      cursor: pointer;
+    .export-btn { padding: 0.25rem 0.5rem; font-size: 0.7rem; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer; }
+    .export-btn:hover { opacity: 0.9; }
+
+    /* ================ State Indicator ================ */
+    .state-indicator {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.5rem 0.75rem; border-radius: 6px; margin-bottom: 0.75rem;
+      font-size: 0.75rem; font-weight: 600; font-family: 'JetBrains Mono', monospace;
     }
-    
-    .export-btn:hover {
-      opacity: 0.9;
+    .state-indicator .dot {
+      width: 8px; height: 8px; border-radius: 50%;
     }
-    
-    /* Speed/Volume controls */
-    .synth-options {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      margin-top: 0.5rem;
-    }
-    
-    .synth-options label {
-      font-size: 0.7rem;
-      color: #8b949e;
-    }
-    
-    .synth-options input[type="range"] {
-      width: 100%;
-    }
-    
-    .synth-options .value-display {
-      font-size: 0.65rem;
-      color: var(--text);
-      text-align: right;
-    }
-    
-    /* Metadata display */
-    .metadata-display {
-      font-size: 0.65rem;
-      color: #8b949e;
-      margin-top: 0.25rem;
-      padding: 0.25rem;
-      background: rgba(0,0,0,0.2);
-      border-radius: 3px;
-    }
-    
-    .metadata-display .phoneme-count {
-      color: var(--accent);
-    }
-    
-    /* Audit Table Styles */
-    .audit-row {
-      border-bottom: 1px solid var(--border);
-      transition: background 0.2s;
-    }
-    .audit-row:hover {
-      background: rgba(255,255,255,0.02);
-    }
-    .audit-row td {
-      padding: 0.6rem 0.5rem;
-      vertical-align: middle;
-    }
-    .play-btn {
-      background: var(--accent);
-      color: white;
-      border: none;
-      padding: 0.2rem 0.6rem;
-      border-radius: 4px;
-      font-size: 0.65rem;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      margin: 0 auto;
-    }
-    .play-btn:hover { opacity: 0.9; }
-    .play-btn:disabled { background: #444; cursor: not-allowed; }
-    
-    .sentence-cell {
-      max-width: 250px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: #8b949e;
-    }
-    .sentence-cell:hover {
-      white-space: normal;
-      word-break: break-word;
-      color: var(--text);
-    }
-    
-    #manualText:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    .state-indicator.idle { background: rgba(139,148,158,0.1); border: 1px solid rgba(139,148,158,0.3); }
+    .state-indicator.idle .dot { background: #8b949e; }
+    .state-indicator.ready { background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3); }
+    .state-indicator.ready .dot { background: var(--success); animation: glow 2s infinite; }
+    .state-indicator.busy { background: rgba(210,153,34,0.1); border: 1px solid rgba(210,153,34,0.3); }
+    .state-indicator.busy .dot { background: var(--warning); animation: glow 1s infinite; }
+    .state-indicator.terminated { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); }
+    .state-indicator.terminated .dot { background: var(--danger); }
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 3px currentColor; }
+      50% { box-shadow: 0 0 8px currentColor; }
     }
   </style>
 </head>
 <body>
   <div class="layout">
     <aside class="sidebar">
+      <!-- ============ STEP 1: Initialize ============ -->
       <div class="card">
-        <h2>Manual Synthesis</h2>
-        <div class="controls-group">
-          <textarea id="manualText" placeholder="Type a sentence to synthesize..." style="width: 100%; height: 60px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 4px; font-family: inherit; font-size: 0.8rem; resize: none;"></textarea>
-          <button id="btnManualSynth" style="background: var(--accent); margin-top: 0.5rem; width: 100%;">Synthesize & Play</button>
+        <h2>① Initialize Provider</h2>
+        <div id="stateIndicator" class="state-indicator idle">
+          <span class="dot"></span>
+          <span id="stateLabel">IDLE — Not Initialized</span>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>System Control</h2>
         <div class="controls-group">
-          <button id="btnInit">Initialize Provider</button>
-          <button id="btnStop" class="danger">Emergency Stop</button>
-          <button id="clear-cache-btn" style="background: #e74c3c;">Clear Model Cache</button>
-        </div>
-        <div id="status">Ready.</div>
-        
-        <h2>Settings Panel</h2>
-        <div class="controls-group">
-          <label for="modelSelect">Hotswap Model</label>
+          <label for="modelSelect">Model</label>
           <select id="modelSelect">
             <option value="en_US-bryce-medium">Bryce (English)</option>
             <option value="uk_UA-ukrainian_tts-medium">Ukrainian (Multi-Speaker)</option>
             <option value="en_GB-cori-medium">Cori (British English)</option>
             <option value="en_US-libritts-high">LibriTTS (904 Speakers)</option>
           </select>
+          <button id="btnInit">Initialize / Hotswap Model</button>
+        </div>
+      </div>
+
+      <!-- ============ STEP 2: Synthesize ============ -->
+      <div class="card">
+        <h2>② Synthesize</h2>
+        <div class="controls-group">
+          <textarea id="manualText" placeholder="Type a sentence to synthesize..." style="width: 100%; height: 60px; background: #0d1117; border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 4px; font-family: inherit; font-size: 0.8rem; resize: none;"></textarea>
+          <button id="btnManualSynth" disabled>Synthesize & Play</button>
           
           <label for="speakerIdSelect">Speaker ID</label>
           <input type="number" id="speakerIdSelect" value="0" min="0" max="999" style="width: 100%;">
@@ -362,13 +239,93 @@
               <div class="value-display" id="volumeValue">1.0</div>
             </div>
           </div>
-          
-          <small style="font-size: 0.7rem; color: #8b949e;">Changing model mid-queue triggers hotswap.</small>
         </div>
       </div>
 
+      <!-- ============ STEP 3: Cancel (Context-aware) ============ -->
+      <div class="card">
+        <h2>③ Cancellation Control</h2>
+        <div id="cancelZone" class="cancel-zone visible">
+          <h3>⚡ Active Cancellation</h3>
+          <div class="cancel-btns">
+            <button id="btnCancelAll" class="danger" disabled>Cancel All Synthesis (Kill Workers)</button>
+            <small style="font-size: 0.65rem; color: #8b949e; line-height: 1.3;">
+              Terminates all busy WASM workers and spawns fresh replacements.
+              Queued tasks are rejected with <code>AbortError</code>.
+            </small>
+          </div>
+        </div>
+        <div id="cancelIdleMsg" style="color: #8b949e; font-size: 0.75rem; text-align: center; padding: 0.5rem;">
+          No active synthesis to cancel.
+        </div>
+      </div>
+
+      <!-- ============ STEP 4: Terminate / Restart ============ -->
+      <div class="card">
+        <h2>④ Lifecycle</h2>
+        <div class="controls-group">
+          <button id="btnStop" class="danger" disabled>Terminate Farm (Full Shutdown)</button>
+          <button id="clear-cache-btn" style="background: #e74c3c;" disabled>Clear Model Cache (OPFS Nuke)</button>
+          <small style="font-size: 0.65rem; color: #8b949e;">After terminate, use Step ① to re-initialize.</small>
+        </div>
+        <div id="status" style="margin-top: 0.5rem; font-size: 0.8rem;">Ready. Press "Initialize" to begin.</div>
+      </div>
+
+      <!-- ============ System Metrics ============ -->
+      <div class="card">
+        <h2>System Metrics</h2>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Queue</div>
+            <div id="metricQueue" class="metric-value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Busy Workers</div>
+            <div id="metricBusy" class="metric-value">0</div>
+          </div>
+        </div>
+        <div style="margin-top: 1rem; border-top: 1px solid #30363d; padding-top: 0.75rem;">
+          <h3 style="font-size: 0.8rem; margin: 0 0 0.5rem 0;">Farm Lifecycle</h3>
+          <div style="font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; line-height: 1.6;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: #8b949e;">Active Pool:</span>
+              <span id="active-pool-id" style="color: var(--success); font-weight: bold;">None</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: #8b949e;">Promotion State:</span>
+              <span id="promotion-state" style="color: var(--warning);">Idle</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #21262d; margin-top: 0.5rem;">
+              <span style="color: #8b949e;">Audio RAM:</span>
+              <span id="audioRamMetric" style="color: #3498db; font-weight: bold;">0.00 MB</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 0.25rem;">
+              <span style="color: #8b949e;">Active Model:</span>
+              <span id="metricActiveModel" style="font-size: 0.65rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;">None</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ Download Progress ============ -->
+      <div class="card">
+        <h2>Download Progress</h2>
+        <div id="download-list" class="controls-group" style="gap: 0.5rem;">
+          <div style="color: #8b949e; font-size: 0.75rem; text-align: center;">No active downloads.</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <!-- ============ Integrated Test Scenario Grid ============ -->
       <div class="card">
         <h2>Integrated Test Scenarios</h2>
+        <div class="test-results-summary" style="margin-bottom: 0.75rem; font-size: 0.75rem;">
+          <span class="passed">✓ <span id="passedCount">0</span></span>
+          <span class="failed">✗ <span id="failedCount">0</span></span>
+          <span class="pending">○ <span id="pendingCount">11</span></span>
+          <button class="export-btn" id="exportLogsBtn">Export Logs</button>
+        </div>
         <div class="test-scenario-grid" id="testScenarioGrid">
           <button class="test-btn" data-scenario="fifo-verification">
             <span class="test-name">FIFO Order</span>
@@ -420,6 +377,11 @@
             <span class="test-desc">50 parallel tasks</span>
             <span class="test-status"></span>
           </button>
+          <button class="test-btn" data-scenario="granular-cancel">
+            <span class="test-name">Granular Cancel</span>
+            <span class="test-desc">AbortSignal + cancelAll + self-heal</span>
+            <span class="test-status"></span>
+          </button>
           <button class="test-btn" id="runAllBtn" style="grid-column: span 2; background: rgba(52, 152, 219, 0.2);">
             <span class="test-name">▶ Run All Scenarios</span>
             <span class="test-desc">Execute all tests in sequence</span>
@@ -428,70 +390,14 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2>System Metrics</h2>
-        <div class="metrics">
-          <div class="metric">
-            <div class="metric-label">Queue</div>
-            <div id="metricQueue" class="metric-value">0</div>
-          </div>
-          <div class="metric-card">
-            <div class="label">Busy Workers</div>
-            <div id="metricBusy" class="value">0</div>
-          </div>
-
-          <div style="margin-top: 1.5rem; border-top: 1px solid #30363d; padding-top: 1rem;">
-            <h3>Farm Lifecycle Status</h3>
-            <div id="lifecycle-status" style="font-size: 0.75rem; font-family: monospace; line-height: 1.4;">
-               <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
-                  <span style="color: #8b949e;">Active Pool:</span>
-                  <span id="active-pool-id" style="color: var(--success); font-weight: bold;">None</span>
-               </div>
-               <div style="display: flex; justify-content: space-between;">
-                  <span style="color: #8b949e;">Promotion State:</span>
-                  <span id="promotion-state" style="color: var(--warning);">Idle</span>
-               </div>
-               <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #21262d; margin-top: 0.5rem;">
-                  <span style="color: #8b949e;">Audio RAM:</span>
-                  <span id="audioRamMetric" style="color: #3498db; font-weight: bold;">0.00 MB</span>
-               </div>
-            </div>
-          </div>
-          
-          <div class="metric" style="grid-column: span 2;">
-            <div class="metric-label">Active Model</div>
-            <div id="metricActiveModel" class="metric-value" style="font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">None</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Download Progress</h2>
-        <div id="download-list" class="controls-group" style="gap: 0.5rem;">
-          <div style="color: #8b949e; font-size: 0.75rem; text-align: center;">No active downloads.</div>
-        </div>
-      </div>
-    </aside>
-
-    <main class="main-content">
-      <div class="test-results-panel">
-        <div class="test-results-header">
-          <h3 style="margin: 0; font-size: 0.85rem;">Test Results</h3>
-          <div class="test-results-summary">
-            <span class="passed">✓ <span id="passedCount">0</span></span>
-            <span class="failed">✗ <span id="failedCount">0</span></span>
-            <span class="pending">○ <span id="pendingCount">10</span></span>
-          </div>
-          <button class="export-btn" id="exportLogsBtn">Export Logs</button>
-        </div>
-      </div>
-
+      <!-- ============ Synthesis Audit Table ============ -->
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); margin-bottom: 1rem; padding-bottom: 0.5rem;">
           <h2 style="margin: 0; border: none;">Synthesis Audit Table</h2>
           <div style="font-size: 0.7rem; color: #8b949e;">
             <span>TOTAL: <span id="totalQueued">0</span></span> | 
-            <span>DONE: <span id="totalDone">0</span></span>
+            <span>DONE: <span id="totalDone">0</span></span> |
+            <span style="color: var(--danger);">CANCELLED: <span id="totalCancelled">0</span></span>
           </div>
         </div>
         
@@ -515,6 +421,7 @@
         </div>
       </div>
 
+      <!-- ============ Process Logs ============ -->
       <div class="card">
         <h2>Process Logs</h2>
         <div class="log-filter-bar" id="logFilterBar">
@@ -527,10 +434,11 @@
           <button class="log-filter-btn" data-category="FIFO">FIFO</button>
           <button class="log-filter-btn" data-category="METADATA">METADATA</button>
           <button class="log-filter-btn" data-category="TEST">TEST</button>
+          <button class="log-filter-btn" data-category="CANCEL">CANCEL</button>
           <button class="log-filter-btn" id="clearLogsBtn" style="margin-left: auto; background: rgba(231, 76, 60, 0.2);">Clear</button>
         </div>
         <div id="log" class="log-container" style="max-height: 400px; overflow-y: auto;">
-          <div class="log-entry info">Integrated Load Verification Runner Ready. Select a test scenario above.</div>
+          <div class="log-entry info">Integrated Load Verification Runner Ready. Initialize the provider to begin.</div>
         </div>
       </div>
     </main>

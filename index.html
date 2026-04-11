@@ -3,21 +3,336 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Piper Timing Farm: Asshole-Proof Testbed</title>
+  <title>Piper Timing Farm: Integrated Load Verification Runner</title>
   <link rel="stylesheet" href="/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* Additional styles for Integrated verification orchestrator */
+    .result-card.active { border-color: var(--warning) !important; background: rgba(243, 156, 18, 0.1); }
+    .result-card.done { border-color: var(--success); }
+    .result-card.now-playing { 
+      border-color: #3498db !important; 
+      box-shadow: 0 0 20px rgba(52, 152, 219, 0.6);
+      background: rgba(52, 152, 219, 0.05);
+      animation: pulse 2s infinite ease-in-out;
+      z-index: 10;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); box-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
+      50% { transform: scale(1.01); box-shadow: 0 0 25px rgba(52, 152, 219, 0.7); }
+      100% { transform: scale(1); box-shadow: 0 0 10px rgba(52, 152, 219, 0.4); }
+    }
+    .toggle-container input { width: auto !important; margin: 0; }
+    
+    /* Test scenario buttons */
+    .test-scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+    
+    .test-btn {
+      padding: 0.5rem;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+    
+    .test-btn:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--accent);
+    }
+    
+    .test-btn.running {
+      background: rgba(243, 156, 18, 0.2);
+      border-color: var(--warning);
+    }
+    
+    .test-btn.passed {
+      background: rgba(46, 204, 113, 0.2);
+      border-color: var(--success);
+    }
+    
+    .test-btn.failed {
+      background: rgba(231, 76, 60, 0.2);
+      border-color: var(--danger);
+    }
+    
+    .test-btn .test-name {
+      font-weight: 600;
+      display: block;
+    }
+    
+    .test-btn .test-desc {
+      font-size: 0.65rem;
+      color: #8b949e;
+    }
+    
+    .test-btn .test-status {
+      font-size: 0.6rem;
+      margin-top: 0.25rem;
+      color: #8b949e;
+    }
+    
+    /* Log filter bar */
+    .log-filter-bar {
+      display: flex;
+      gap: 0.25rem;
+      padding: 0.5rem;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    
+    .log-filter-btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.7rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: #8b949e;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .log-filter-btn:hover {
+      background: var(--bg-tertiary);
+    }
+    
+    .log-filter-btn.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    
+    /* Log entry styles */
+    .log-entry-wrapper {
+      border-bottom: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+    }
+    
+    .log-entry-collapsed {
+      padding: 0.25rem 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    
+    .log-entry-collapsed:hover {
+      background: var(--bg-secondary);
+    }
+    
+    .log-time {
+      color: #6c757d;
+      font-size: 0.7rem;
+    }
+    
+    .log-category {
+      font-weight: 600;
+      font-size: 0.65rem;
+    }
+    
+    .log-level {
+      font-size: 0.6rem;
+      padding: 0 0.25rem;
+      border-radius: 2px;
+    }
+    
+    .log-event {
+      color: var(--text);
+    }
+    
+    .log-expand-icon {
+      margin-left: auto;
+      color: #6c757d;
+      font-size: 0.6rem;
+    }
+    
+    .log-entry-expanded {
+      padding: 0.5rem;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+    }
+    
+    .log-detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.7rem;
+    }
+    
+    .log-detail-key {
+      color: #8b949e;
+      width: 30%;
+      padding: 0.125rem 0;
+      vertical-align: top;
+    }
+    
+    .log-detail-value {
+      color: var(--text);
+      word-break: break-all;
+    }
+    
+    .log-count {
+      padding: 0.5rem;
+      text-align: center;
+      font-size: 0.7rem;
+      color: #8b949e;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    /* Test results panel */
+    .test-results-panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+    
+    .test-results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .test-results-summary {
+      display: flex;
+      gap: 1rem;
+      font-size: 0.75rem;
+    }
+    
+    .test-results-summary .passed { color: var(--success); }
+    .test-results-summary .failed { color: var(--danger); }
+    .test-results-summary .pending { color: #8b949e; }
+    
+    /* Export button */
+    .export-btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.7rem;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    .export-btn:hover {
+      opacity: 0.9;
+    }
+    
+    /* Speed/Volume controls */
+    .synth-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    
+    .synth-options label {
+      font-size: 0.7rem;
+      color: #8b949e;
+    }
+    
+    .synth-options input[type="range"] {
+      width: 100%;
+    }
+    
+    .synth-options .value-display {
+      font-size: 0.65rem;
+      color: var(--text);
+      text-align: right;
+    }
+    
+    /* Metadata display */
+    .metadata-display {
+      font-size: 0.65rem;
+      color: #8b949e;
+      margin-top: 0.25rem;
+      padding: 0.25rem;
+      background: rgba(0,0,0,0.2);
+      border-radius: 3px;
+    }
+    
+    .metadata-display .phoneme-count {
+      color: var(--accent);
+    }
+    
+    /* Audit Table Styles */
+    .audit-row {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+    .audit-row:hover {
+      background: rgba(255,255,255,0.02);
+    }
+    .audit-row td {
+      padding: 0.6rem 0.5rem;
+      vertical-align: middle;
+    }
+    .play-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin: 0 auto;
+    }
+    .play-btn:hover { opacity: 0.9; }
+    .play-btn:disabled { background: #444; cursor: not-allowed; }
+    
+    .sentence-cell {
+      max-width: 250px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #8b949e;
+    }
+    .sentence-cell:hover {
+      white-space: normal;
+      word-break: break-word;
+      color: var(--text);
+    }
+    
+    #manualText:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+    }
+  </style>
 </head>
 <body>
   <div class="layout">
     <aside class="sidebar">
       <div class="card">
+        <h2>Manual Synthesis</h2>
+        <div class="controls-group">
+          <textarea id="manualText" placeholder="Type a sentence to synthesize..." style="width: 100%; height: 60px; background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text); padding: 0.5rem; border-radius: 4px; font-family: inherit; font-size: 0.8rem; resize: none;"></textarea>
+          <button id="btnManualSynth" style="background: var(--accent); margin-top: 0.5rem; width: 100%;">Synthesize & Play</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>System Control</h2>
         <div class="controls-group">
           <button id="btnInit">Initialize Provider</button>
           <button id="btnStop" class="danger">Emergency Stop</button>
-          <button id="synth-btn">Synthesize</button>
           <button id="clear-cache-btn" style="background: #e74c3c;">Clear Model Cache</button>
         </div>
         <div id="status">Ready.</div>
@@ -29,22 +344,88 @@
             <option value="en_US-bryce-medium">Bryce (English)</option>
             <option value="uk_UA-ukrainian_tts-medium">Ukrainian (Multi-Speaker)</option>
             <option value="en_GB-cori-medium">Cori (British English)</option>
+            <option value="en_US-libritts-high">LibriTTS (904 Speakers)</option>
           </select>
           
           <label for="speakerIdSelect">Speaker ID</label>
           <input type="number" id="speakerIdSelect" value="0" min="0" max="999" style="width: 100%;">
           
-          <small style="font-size: 0.7rem; color: #8b949e;">Changing these mid-queue triggers an "Asshole-Proof" hotswap.</small>
+          <div class="synth-options">
+            <div>
+              <label for="speedSlider">Speed</label>
+              <input type="range" id="speedSlider" min="0.5" max="2" step="0.1" value="1">
+              <div class="value-display" id="speedValue">1.0x</div>
+            </div>
+            <div>
+              <label for="volumeSlider">Volume</label>
+              <input type="range" id="volumeSlider" min="0" max="2" step="0.1" value="1">
+              <div class="value-display" id="volumeValue">1.0</div>
+            </div>
+          </div>
+          
+          <small style="font-size: 0.7rem; color: #8b949e;">Changing model mid-queue triggers hotswap.</small>
         </div>
       </div>
 
       <div class="card">
-        <h2>Testing Tools</h2>
-        <div class="controls-group">
-          <button id="btnBarrage" class="warning">🔥 Fire & Forget (Barrage)</button>
-          <button id="btnChaos" class="secondary">🌀 Chaos Mode</button>
+        <h2>Integrated Test Scenarios</h2>
+        <div class="test-scenario-grid" id="testScenarioGrid">
+          <button class="test-btn" data-scenario="fifo-verification">
+            <span class="test-name">FIFO Order</span>
+            <span class="test-desc">Verify result ordering</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="hotswap-stress">
+            <span class="test-name">Hotswap Stress</span>
+            <span class="test-desc">Rapid model switching</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="memory-pressure">
+            <span class="test-name">Memory Pressure</span>
+            <span class="test-desc">100 long texts</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="download-cancel">
+            <span class="test-name">Download Cancel</span>
+            <span class="test-desc">Cancel & resume</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="sha256-integrity">
+            <span class="test-name">SHA-256 Check</span>
+            <span class="test-desc">Integrity verification</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="callback-module">
+            <span class="test-name">Callback Module</span>
+            <span class="test-desc">Viseme extraction</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="cdn-entry-point">
+            <span class="test-name">CDN Entry</span>
+            <span class="test-desc">jsDelivr assets</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="speed-volume">
+            <span class="test-name">Speed/Volume</span>
+            <span class="test-desc">Options test</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="multi-speaker">
+            <span class="test-name">Multi-Speaker</span>
+            <span class="test-desc">Speaker ID validation</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" data-scenario="burst-concurrency">
+            <span class="test-name">Flash Flood</span>
+            <span class="test-desc">50 parallel tasks</span>
+            <span class="test-status"></span>
+          </button>
+          <button class="test-btn" id="runAllBtn" style="grid-column: span 2; background: rgba(52, 152, 219, 0.2);">
+            <span class="test-name">▶ Run All Scenarios</span>
+            <span class="test-desc">Execute all tests in sequence</span>
+            <span class="test-status"></span>
+          </button>
         </div>
-        <div id="chaosStatus" style="font-size: 0.8rem; text-align: center; font-weight: bold; color: var(--warning);"></div>
       </div>
 
       <div class="card">
@@ -54,10 +435,29 @@
             <div class="metric-label">Queue</div>
             <div id="metricQueue" class="metric-value">0</div>
           </div>
-          <div class="metric">
-            <div class="metric-label">Busy</div>
-            <div id="metricBusy" class="metric-value">0</div>
+          <div class="metric-card">
+            <div class="label">Busy Workers</div>
+            <div id="metricBusy" class="value">0</div>
           </div>
+
+          <div style="margin-top: 1.5rem; border-top: 1px solid #30363d; padding-top: 1rem;">
+            <h3>Farm Lifecycle Status</h3>
+            <div id="lifecycle-status" style="font-size: 0.75rem; font-family: monospace; line-height: 1.4;">
+               <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+                  <span style="color: #8b949e;">Active Pool:</span>
+                  <span id="active-pool-id" style="color: var(--success); font-weight: bold;">None</span>
+               </div>
+               <div style="display: flex; justify-content: space-between;">
+                  <span style="color: #8b949e;">Promotion State:</span>
+                  <span id="promotion-state" style="color: var(--warning);">Idle</span>
+               </div>
+               <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid #21262d; margin-top: 0.5rem;">
+                  <span style="color: #8b949e;">Audio RAM:</span>
+                  <span id="audioRamMetric" style="color: #3498db; font-weight: bold;">0.00 MB</span>
+               </div>
+            </div>
+          </div>
+          
           <div class="metric" style="grid-column: span 2;">
             <div class="metric-label">Active Model</div>
             <div id="metricActiveModel" class="metric-value" style="font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">None</div>
@@ -74,23 +474,63 @@
     </aside>
 
     <main class="main-content">
+      <div class="test-results-panel">
+        <div class="test-results-header">
+          <h3 style="margin: 0; font-size: 0.85rem;">Test Results</h3>
+          <div class="test-results-summary">
+            <span class="passed">✓ <span id="passedCount">0</span></span>
+            <span class="failed">✗ <span id="failedCount">0</span></span>
+            <span class="pending">○ <span id="pendingCount">10</span></span>
+          </div>
+          <button class="export-btn" id="exportLogsBtn">Export Logs</button>
+        </div>
+      </div>
+
       <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); margin-bottom: 1rem; padding-bottom: 0.5rem;">
-          <h2 style="margin: 0; border: none;">Queue Execution Proofs</h2>
+          <h2 style="margin: 0; border: none;">Synthesis Audit Table</h2>
           <div style="font-size: 0.7rem; color: #8b949e;">
             <span>TOTAL: <span id="totalQueued">0</span></span> | 
             <span>DONE: <span id="totalDone">0</span></span>
           </div>
         </div>
-        <div id="resultList" class="result-list">
-          <div style="color: #8b949e; text-align: center; padding: 2rem;">No synthesis tasks in queue.</div>
+        
+        <div class="audit-table-container" style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border); color: #8b949e;">
+                <th style="padding: 0.5rem;">#ID</th>
+                <th style="padding: 0.5rem;">Model</th>
+                <th style="padding: 0.5rem;">Sentence</th>
+                <th style="padding: 0.5rem;">Audio</th>
+                <th style="padding: 0.5rem;">Payload</th>
+                <th style="padding: 0.5rem; text-align: center;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="resultList">
+              <!-- Entries populated by JS -->
+            </tbody>
+          </table>
+          <div id="empty-table-msg" style="color: #8b949e; text-align: center; padding: 2rem;">No synthesis tasks in queue.</div>
         </div>
       </div>
 
       <div class="card">
-        <h2>System Logs</h2>
-        <div id="log" class="log-container">
-          <div class="log-entry info">Testbed Ready. Select a model or start a barrage.</div>
+        <h2>Process Logs</h2>
+        <div class="log-filter-bar" id="logFilterBar">
+          <button class="log-filter-btn active" data-category="ALL">ALL</button>
+          <button class="log-filter-btn" data-category="LIFECYCLE">LIFECYCLE</button>
+          <button class="log-filter-btn" data-category="DOWNLOAD">DOWNLOAD</button>
+          <button class="log-filter-btn" data-category="SYNTHESIS">SYNTHESIS</button>
+          <button class="log-filter-btn" data-category="WORKER">WORKER</button>
+          <button class="log-filter-btn" data-category="CACHE">CACHE</button>
+          <button class="log-filter-btn" data-category="FIFO">FIFO</button>
+          <button class="log-filter-btn" data-category="METADATA">METADATA</button>
+          <button class="log-filter-btn" data-category="TEST">TEST</button>
+          <button class="log-filter-btn" id="clearLogsBtn" style="margin-left: auto; background: rgba(231, 76, 60, 0.2);">Clear</button>
+        </div>
+        <div id="log" class="log-container" style="max-height: 400px; overflow-y: auto;">
+          <div class="log-entry info">Integrated Load Verification Runner Ready. Select a test scenario above.</div>
         </div>
       </div>
     </main>

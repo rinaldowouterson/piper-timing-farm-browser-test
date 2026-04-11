@@ -208,6 +208,11 @@ async function initProvider(options: {
         }
       } else if (event.state === 'completed') {
         activeUIRows.delete(event.requestId);
+        if (row) {
+          row.classList.replace('active', 'done');
+          const modelCell = row.querySelector('.model-cell');
+          if (modelCell) modelCell.innerHTML = `<span class="tag ${event.modelId?.includes('uk') ? 'uk' : 'en'}">${event.modelId || 'DONE'}</span>`;
+        }
         refreshBusyState();
       } else if (event.state === 'cancelled' || event.state === 'error') {
         activeUIRows.delete(event.requestId);
@@ -465,18 +470,40 @@ async function runScenario(scenarioId: string) {
     await resetCache();
   }
   
+  if (!provider) {
+    await initProvider();
+  }
+  
+  // Wrap the provider for tests so the results organically feed into the newly generated UI rows!
+  const contextProvider = Object.create(provider);
+  contextProvider.synthesize = async (text: string, options?: any) => {
+    try {
+      const result = await provider!.synthesize(text, options);
+      const row = document.getElementById(`row-${options?.requestId}`);
+      if (row) handleSynthesisResult(text, result as AudioSynthesisResult, row);
+      return result;
+    } catch (err) {
+      const row = document.getElementById(`row-${options?.requestId}`);
+      if (row) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          // cancelled handled organically by event hook
+        } else {
+          row.style.borderColor = 'var(--danger)';
+          const modelCell = row.querySelector('.model-cell');
+          if (modelCell) modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">FAILED</span>`;
+        }
+      }
+      throw err;
+    }
+  };
+
   const context = {
-    provider: provider!,
+    provider: contextProvider as NonNullable<typeof provider>,
     logger: logger!,
     verifier: verifier!,
     audioContext: audioCtx!,
     resetCache
   };
-  
-  if (!provider) {
-    provider = createPiperProvider();
-    LogHelpers.lifecycle.providerCreated(logger!);
-  }
   
   try {
     const result = await scenario.execute(context);

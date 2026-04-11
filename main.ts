@@ -90,10 +90,9 @@ let logger: ProcessLogger | null = null;
 let verifier: FifoVerifier | null = null;
 
 /**
- * Tracks active (in-flight) synthesis requests:
- * Maps requestId → { abortController, row }
+ * Tracks active (in-flight) UI request IDs
  */
-const activeAbortControllers = new Map<string, { controller: AbortController; row: HTMLElement }>();
+const activeUIRows = new Set<string>();
 
 const testResults: Map<string, TestResult> = new Map();
 
@@ -121,7 +120,7 @@ function setFarmState(state: FarmState) {
       btnClearCache.disabled = false;
       break;
     case 'busy':
-      stateLabel.textContent = `SYNTHESIZING — ${activeAbortControllers.size} active`;
+      stateLabel.textContent = `SYNTHESIZING — ${activeUIRows.size} active`;
       btnManualSynth.disabled = false;
       btnStop.disabled = false;
       btnCancelAll.disabled = false;
@@ -136,14 +135,14 @@ function setFarmState(state: FarmState) {
   }
 
   // Cancel zone visibility
-  const hasTasks = activeAbortControllers.size > 0;
+  const hasTasks = activeUIRows.size > 0;
   cancelZone.style.display = hasTasks ? 'block' : 'none';
   cancelIdleMsg.style.display = hasTasks ? 'none' : 'block';
 }
 
 function refreshBusyState() {
   if (!provider) return;
-  if (activeAbortControllers.size > 0) {
+  if (activeUIRows.size > 0) {
     setFarmState('busy');
   } else if (provider.isInitialized()) {
     setFarmState('ready');
@@ -192,6 +191,33 @@ async function initProvider(options: {
   
   if (!provider) {
     provider = createPiperProvider();
+    
+    // Bind the global observability event subscriber
+    provider.onQueueStatus(event => {
+      let row = document.getElementById(`row-${event.requestId}`);
+      
+      if (event.state === 'queued') {
+        if (!row) row = createResultCard(event.text, event.requestId);
+        activeUIRows.add(event.requestId);
+        refreshBusyState();
+      } else if (event.state === 'processing') {
+        if (row) {
+          row.classList.add('active');
+          const modelCell = row.querySelector('.model-cell')!;
+          modelCell.innerHTML = `<span class="tag">SYNTHESIZING...</span>`;
+        }
+      } else if (event.state === 'completed') {
+        activeUIRows.delete(event.requestId);
+        refreshBusyState();
+      } else if (event.state === 'cancelled' || event.state === 'error') {
+        activeUIRows.delete(event.requestId);
+        if (row) {
+          if (event.state === 'cancelled') markRowCancelled(row, event.requestId);
+        }
+        refreshBusyState();
+      }
+    });
+
     LogHelpers.lifecycle.providerCreated(logger!);
   }
   
@@ -316,34 +342,28 @@ function markRowCancelled(row: HTMLElement, _requestId: string) {
   durationCell.textContent = '—';
 }
 
-async function queueSynthesis(text: string, card: HTMLElement, options: { speakerId?: number; speed?: number; volume?: number; silent?: boolean } = {}) {
+async function queueSynthesis(text: string, options: { speakerId?: number; speed?: number; volume?: number; silent?: boolean } = {}) {
   if (!provider || !audioCtx || !logger) return;
   
   const speakerId = options.speakerId ?? (parseInt(speakerIdSelect.value) || 0);
   const speed = options.speed ?? (parseFloat(speedSlider.value) || 1.0);
   const volume = options.volume ?? (parseFloat(volumeSlider.value) || 1.0);
   
-  card.classList.replace('pending', 'active');
-  const modelCell = card.querySelector('.model-cell')!;
-  modelCell.innerHTML = `<span class="tag">SYNTHESIZING...</span>`;
-  
+  // Let the reactive events create the card when 'queued' comes!
   const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   LogHelpers.synthesis.requested(logger!, requestId, text, speakerId, speed, volume);
-
-  // Create AbortController for per-request cancellation
-  const abortController = new AbortController();
-  activeAbortControllers.set(requestId, { controller: abortController, row: card });
-  refreshBusyState();
 
   try {
     const result = await provider.synthesize(text, { 
       speakerId, 
       speed, 
       volume,
-      requestId,
-      signal: abortController.signal
+      requestId
     });
-    handleSynthesisResult(text, result as AudioSynthesisResult, card);
+    
+    const row = document.getElementById(`row-${requestId}`);
+    if (row && result) handleSynthesisResult(text, result as AudioSynthesisResult, row);
+
     
     if (result.metadata.phonemes) {
       LogHelpers.metadata.phonemes(logger!, requestId, result.metadata.phonemes.length, result.metadata.phonemes);
@@ -356,18 +376,18 @@ async function queueSynthesis(text: string, card: HTMLElement, options: { speake
     
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      markRowCancelled(card, requestId);
       logger!.log({ category: 'SYNTHESIS' as LogCategory, level: 'INFO', event: 'SYNTH_CANCELLED', requestId, data: {
-        reason: 'AbortSignal or cancelSynthesis'
+        reason: 'Provider cancelSynthesis'
       }});
     } else {
-      card.style.borderColor = 'var(--danger)';
-      modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">FAILED</span>`;
+      const row = document.getElementById(`row-${requestId}`);
+      if (row) {
+        row.style.borderColor = 'var(--danger)';
+        const modelCell = row.querySelector('.model-cell');
+        if (modelCell) modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">FAILED</span>`;
+      }
       LogHelpers.test.scenarioFail(logger, 'synthesis', String(err), 0);
     }
-  } finally {
-    activeAbortControllers.delete(requestId);
-    refreshBusyState();
   }
 }
 
@@ -378,16 +398,11 @@ async function queueSynthesis(text: string, card: HTMLElement, options: { speake
 function cancelAllSynthesis() {
   if (!provider || !logger) return;
 
-  const count = activeAbortControllers.size;
+  const count = activeUIRows.size;
   logger!.log({ category: 'SYNTHESIS' as LogCategory, level: 'WARN' as any, event: 'CANCEL_ALL_SYNTHESIS', data: {
     activeRequests: count,
     action: 'Terminating all busy workers and spawning replacements'
   }});
-
-  // Mark all active rows as cancelled
-  for (const [reqId, { row }] of activeAbortControllers) {
-    markRowCancelled(row, reqId);
-  }
 
   // Call the library's cancelAllSynthesis (this triggers replaceWorker for each busy worker)
   provider.cancelAllSynthesis();
@@ -455,12 +470,7 @@ async function runScenario(scenarioId: string) {
     logger: logger!,
     verifier: verifier!,
     audioContext: audioCtx!,
-    resetCache,
-    onResultReady: (text: string, result: AudioSynthesisResult) => {
-      const requestId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-      const row = createResultCard(text, requestId);
-      handleSynthesisResult(text, result, row);
-    }
+    resetCache
   };
   
   if (!provider) {
@@ -626,9 +636,7 @@ btnManualSynth.onclick = async () => {
     await initProvider();
   }
   
-  const requestId = `manual-${Date.now()}`;
-  const row = createResultCard(text, requestId);
-  queueSynthesis(text, row);
+  queueSynthesis(text);
   manualText.value = '';
 };
 
@@ -644,17 +652,13 @@ resultList.addEventListener('click', (e) => {
   const requestId = cancelBtn.dataset.requestId;
   if (!requestId) return;
 
-  const entry = activeAbortControllers.get(requestId);
-  if (entry) {
-    // Use AbortController to cancel this specific request
-    entry.controller.abort();
-    // Also call library-level cancel to trigger worker replacement
+  if (activeUIRows.has(requestId)) {
     if (provider) {
       provider.cancelSynthesis(requestId);
     }
     initLogger();
     logger!.log({ category: 'SYNTHESIS' as LogCategory, level: 'INFO', event: 'SINGLE_CANCEL', requestId, data: {
-      action: 'AbortController.abort() + provider.cancelSynthesis()'
+      action: 'provider.cancelSynthesis()'
     }});
   }
 });
@@ -665,7 +669,7 @@ btnStop.onclick = () => {
   sequencer?.stop();
   
   // Cancel all in-flight before terminating
-  if (activeAbortControllers.size > 0) {
+  if (activeUIRows.size > 0) {
     cancelAllSynthesis();
   }
   

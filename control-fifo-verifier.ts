@@ -150,8 +150,7 @@ export async function runFifoTest(
   logger: ProcessLogger,
   verifier: FifoVerifier,
   count: number = 50,
-  textGenerator: (index: number) => string = (i) => `[#${i}] FIFO test sentence number ${i}.`,
-  onResultReady?: (text: string, result: any) => void
+  textGenerator: (index: number) => string = (i) => `[#${i}] FIFO test sentence number ${i}.`
 ): Promise<{ passed: boolean; stats: FifoStats }> {
   
   LogHelpers.test.scenarioStart(logger, 'fifo-verification', `FIFO Order Verification (${count} requests)`);
@@ -189,9 +188,6 @@ export async function runFifoTest(
         result.durationMs,
         result.metadata.generationTimeMs || 0
       );
-      if (onResultReady) {
-        onResultReady(text, result);
-      }
     });
     
     promises.push(promise);

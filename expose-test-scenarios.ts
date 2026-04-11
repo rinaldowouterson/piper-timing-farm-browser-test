@@ -7,7 +7,6 @@
 
 import { ProcessLogger, LogHelpers } from './process-logging';
 import { FifoVerifier, createFifoVerifier, generateRequestId, runFifoTest } from './control-fifo-verifier';
-import { AudioSynthesisResult } from './types/audio-interface';
 
 // Re-export for convenience
 export { createFifoVerifier, generateRequestId, runFifoTest };
@@ -42,7 +41,6 @@ export interface TestContext {
   verifier: FifoVerifier;
   audioContext: AudioContext;
   resetCache: () => Promise<void>;
-  onResultReady?: (text: string, result: AudioSynthesisResult) => void;
 }
 
 
@@ -75,7 +73,7 @@ const fifoOrderVerificationScenario: TestScenario = {
       }
       
       // Run FIFO test with 50 requests
-      const { passed, stats } = await runFifoTest(provider, logger, verifier, 50, undefined, context.onResultReady);
+      const { passed, stats } = await runFifoTest(provider, logger, verifier, 50, undefined);
       
       assertions.push({
         name: 'FIFO order maintained',
@@ -275,9 +273,6 @@ const memoryPressureScenario: TestScenario = {
             result.durationMs,
             result.metadata.generationTimeMs || 0
           );
-          if (context.onResultReady) {
-            context.onResultReady(longTexts[i], result as AudioSynthesisResult);
-          }
         });
         
         promises.push(promise);
@@ -1079,9 +1074,6 @@ const flashFloodScenario: TestScenario = {
             result.durationMs,
             result.metadata.generationTimeMs || 0
           );
-          if (context.onResultReady) {
-            context.onResultReady(text, result as AudioSynthesisResult);
-          }
         });
         
         promises.push(promise);
@@ -1261,10 +1253,6 @@ const granularCancelScenario: TestScenario = {
         try {
           const result = await provider.synthesize('Post-cancellation self-healing test.');
           selfHealed = result.audioData.length > 0;
-          
-          if (context.onResultReady) {
-            context.onResultReady('Post-cancellation self-healing test.', result as AudioSynthesisResult);
-          }
         } catch (err) {
           selfHealed = false;
         }

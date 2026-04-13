@@ -218,6 +218,7 @@ async function initProvider(options: {
         activeUIRows.delete(event.requestId);
         if (row) {
           if (event.state === 'cancelled') markRowCancelled(row, event.requestId);
+          else if (event.state === 'error') markRowError(row, event.requestId, event.error);
         }
         refreshBusyState();
       }
@@ -342,6 +343,24 @@ function handleSynthesisResult(_text: string, result: AudioSynthesisResult, row:
   if (cancelBtn) cancelBtn.disabled = true;
   
   (row as any)._result = result;
+}
+
+function markRowError(row: HTMLElement, _requestId: string, errorMsg?: string) {
+  row.classList.remove('pending', 'active');
+  row.classList.add('error');
+  row.style.borderColor = 'var(--danger)';
+
+  const modelCell = row.querySelector('.model-cell')!;
+  modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">FAILED</span>`;
+
+  const durationCell = row.querySelector('.duration-cell')!;
+  durationCell.textContent = 'ERROR';
+  
+  if (errorMsg) {
+    const sentenceCell = row.querySelector('.sentence-cell')!;
+    sentenceCell.setAttribute('title', errorMsg);
+    sentenceCell.innerHTML += `<div style="color: var(--danger); font-size: 0.7rem; margin-top: 4px;">${errorMsg}</div>`;
+  }
 }
 
 function markRowCancelled(row: HTMLElement, _requestId: string) {

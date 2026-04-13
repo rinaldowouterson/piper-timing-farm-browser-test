@@ -114,9 +114,22 @@ function computeTimestamps(durations) {
  * @returns {Object} - Callback result (will be attached to synthesis result)
  */
 export function processVisemes(result) {
-    // Extract phonemes
-    const phonemes = result.metadata?.phonemes || [];
-    const durations = result.metadata?.durations || new Float32Array(0);
+    // 1. Validate result structure (Fail Fast)
+    if (!result || !result.metadata) {
+        throw new Error("Invalid synthesis result: Missing metadata");
+    }
+
+    if (!result.metadata.durations || result.metadata.durations.length === 0) {
+        throw new Error(`Durations missing for model '${result.metadata.modelId}'. Ensure model is patched.`);
+    }
+
+    if (!result.metadata.phonemes || result.metadata.phonemes.length === 0) {
+        throw new Error("Phonemes missing from synthesis metadata.");
+    }
+
+    // Extract phonemes and durations
+    const phonemes = result.metadata.phonemes;
+    const durations = result.metadata.durations;
 
     // Convert phonemes to visemes
     const visemes = new Uint8Array(phonemes.length);

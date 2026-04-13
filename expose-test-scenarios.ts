@@ -156,7 +156,7 @@ const hotswapStressScenario: TestScenario = {
       for (let i = 0; i < cycles; i++) {
         const targetModel = models[i % models.length];
         
-        LogHelpers.lifecycle.initRequested(logger, targetModel, 2, true);
+        LogHelpers.lifecycle.initRequested(logger, targetModel, 2);
         
         await provider.init({
           modelId: targetModel,
@@ -265,7 +265,7 @@ const memoryPressureScenario: TestScenario = {
         
         LogHelpers.synthesis.requested(logger, requestId, longTexts[i]);
         
-        const promise = provider.synthesize(longTexts[i]).then(result => {
+        const promise = provider.synthesize(longTexts[i], { requestId }).then(result => {
           LogHelpers.synthesis.resultReady(
             logger,
             requestId,
@@ -365,7 +365,7 @@ const downloadCancelScenario: TestScenario = {
       // Start downloading a large model
       const largeModel = 'en_US-libritts-high'; // Large multi-speaker model
       
-      LogHelpers.download.queued(logger, largeModel, true);
+      LogHelpers.download.queued(logger, largeModel);
       
       // Init with progress callback
       let progressReached50 = false;
@@ -568,7 +568,7 @@ const callbackModuleScenario: TestScenario = {
         voiceId: 'en_US-bryce-medium',
         cpuInstances: 2,
         callbackModule: {
-          path: '/js/viseme-processor.js',
+          path: '/process-viseme-callback.js',
           functionName: 'processVisemes'
         }
       });
@@ -579,7 +579,7 @@ const callbackModuleScenario: TestScenario = {
       const requestId = generateRequestId();
       LogHelpers.synthesis.requested(logger, requestId, 'Hello world callback test');
       
-      const result = await provider.synthesize('Hello world callback test');
+      const result = await provider.synthesize('Hello world callback test', { requestId });
       
       LogHelpers.synthesis.resultReady(
         logger,
@@ -655,115 +655,6 @@ const callbackModuleScenario: TestScenario = {
   }
 };
 
-// ============================================
-// SCENARIO 7: CDN Entry Point Test
-// ============================================
-
-const cdnEntryPointScenario: TestScenario = {
-  id: 'cdn-entry-point',
-  name: 'CDN Entry Point Test',
-  description: 'Verify CDN mode works identically to local assets',
-  requiresCacheReset: false,
-  
-  async execute(context: TestContext): Promise<TestResult> {
-    const { logger } = context;
-    const assertions: TestResult['assertions'] = [];
-    const startTime = Date.now();
-    
-    LogHelpers.test.scenarioStart(logger, 'cdn-entry-point', 'CDN Entry Point Test');
-    
-    try {
-      // Import CDN entry point
-      const { createPiperProvider } = await import('piper-timing-farm-browser/cdn');
-      
-      const cdnProvider = createPiperProvider();
-      
-      LogHelpers.lifecycle.providerCreated(logger);
-      LogHelpers.lifecycle.initRequested(logger, 'en_US-bryce-medium', 2, true);
-      
-      // Initialize CDN provider
-      await cdnProvider.init({
-        modelId: 'en_US-bryce-medium',
-        voiceId: 'en_US-bryce-medium',
-        cpuInstances: 2
-      });
-      
-      LogHelpers.download.started(logger, 'en_US-bryce-medium', 'cdn.jsdelivr.net', 0);
-      LogHelpers.lifecycle.promotionComplete(logger, 'en_US-bryce-medium', 2);
-      
-      // Synthesize
-      const requestId = generateRequestId();
-      LogHelpers.synthesis.requested(logger, requestId, 'CDN test sentence');
-      
-      const result = await cdnProvider.synthesize('CDN test sentence');
-      
-      LogHelpers.synthesis.resultReady(
-        logger,
-        requestId,
-        result.metadata.modelId || 'unknown',
-        result.durationMs,
-        result.metadata.generationTimeMs || 0
-      );
-      
-      assertions.push({
-        name: 'CDN provider initialized',
-        passed: cdnProvider.isInitialized(),
-        expected: 'Provider initialized',
-        actual: cdnProvider.isInitialized() ? 'Initialized' : 'Not initialized'
-      });
-      
-      assertions.push({
-        name: 'Audio data generated',
-        passed: result.audioData.length > 0,
-        expected: 'audioData.length > 0',
-        actual: result.audioData.length
-      });
-      
-      assertions.push({
-        name: 'Metadata available',
-        passed: result.metadata.modelId !== undefined,
-        expected: 'modelId defined',
-        actual: result.metadata.modelId || 'undefined'
-      });
-      
-      // Cleanup
-      cdnProvider.terminate();
-      LogHelpers.lifecycle.providerTerminated(logger, 'en_US-bryce-medium');
-      
-      const duration = Date.now() - startTime;
-      const eventsLogged = logger.getEntries().length;
-      
-      const passed = assertions.every(a => a.passed);
-      if (passed) {
-        LogHelpers.test.scenarioPass(logger, 'cdn-entry-point', duration, eventsLogged);
-      } else {
-        LogHelpers.test.scenarioFail(logger, 'cdn-entry-point', 'Assertions failed', duration);
-      }
-      
-      return {
-        scenarioId: 'cdn-entry-point',
-        scenarioName: 'CDN Entry Point Test',
-        passed,
-        duration,
-        eventsLogged,
-        assertions
-      };
-      
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      LogHelpers.test.scenarioFail(logger, 'cdn-entry-point', String(error), duration);
-      return {
-        scenarioId: 'cdn-entry-point',
-        scenarioName: 'CDN Entry Point Test',
-        passed: false,
-        duration,
-        eventsLogged: logger.getEntries().length,
-        assertions,
-        error: String(error)
-      };
-    }
-  }
-};
 
 // ============================================
 // SCENARIO 8: Speed/Volume Test
@@ -792,7 +683,9 @@ const speedVolumeScenario: TestScenario = {
       LogHelpers.lifecycle.promotionComplete(logger, 'en_US-bryce-medium', 2);
       
       // Test normal speed
-      const normalResult = await provider.synthesize('Speed test normal');
+      const requestIdNormal = generateRequestId();
+      LogHelpers.synthesis.requested(logger, requestIdNormal, 'Speed test normal');
+      const normalResult = await provider.synthesize('Speed test normal', { requestId: requestIdNormal });
       const normalDuration = normalResult.durationMs;
       
       LogHelpers.synthesis.resultReady(
@@ -804,7 +697,9 @@ const speedVolumeScenario: TestScenario = {
       );
       
       // Test slow speed (0.5)
-      const slowResult = await provider.synthesize('Speed test slow', { speed: 0.5 });
+      const requestIdSlow = generateRequestId();
+      LogHelpers.synthesis.requested(logger, requestIdSlow, 'Speed test slow', undefined, 0.5);
+      const slowResult = await provider.synthesize('Speed test slow', { requestId: requestIdSlow, speed: 0.5 });
       const slowDuration = slowResult.durationMs;
       
       LogHelpers.synthesis.requested(logger, generateRequestId(), 'Speed test slow', undefined, 0.5);
@@ -824,7 +719,9 @@ const speedVolumeScenario: TestScenario = {
       });
       
       // Test fast speed (2.0)
-      const fastResult = await provider.synthesize('Speed test fast', { speed: 2.0 });
+      const requestIdFast = generateRequestId();
+      LogHelpers.synthesis.requested(logger, requestIdFast, 'Speed test fast', undefined, 2.0);
+      const fastResult = await provider.synthesize('Speed test fast', { requestId: requestIdFast, speed: 2.0 });
       const fastDuration = fastResult.durationMs;
       
       LogHelpers.synthesis.requested(logger, generateRequestId(), 'Speed test fast', undefined, 2.0);
@@ -844,7 +741,9 @@ const speedVolumeScenario: TestScenario = {
       });
       
       // Test volume 0.0 (silence)
-      const silentResult = await provider.synthesize('Volume test silent', { volume: 0.0 });
+      const requestIdSilent = generateRequestId();
+      LogHelpers.synthesis.requested(logger, requestIdSilent, 'Volume test silent', undefined, undefined, 0.0);
+      const silentResult = await provider.synthesize('Volume test silent', { requestId: requestIdSilent, volume: 0.0 });
       const isSilent = silentResult.audioData.every(v => v === 0);
       
       LogHelpers.synthesis.requested(logger, generateRequestId(), 'Volume test silent', undefined, undefined, 0.0);
@@ -923,8 +822,7 @@ const multiSpeakerScenario: TestScenario = {
       for (const speakerId of validSpeakerIds) {
         const requestId = generateRequestId();
         LogHelpers.synthesis.requested(logger, requestId, `Speaker ${speakerId} test`, speakerId);
-        
-        const result = await provider.synthesize(`Speaker ${speakerId} test`, { speakerId });
+        const result = await provider.synthesize(`Speaker ${speakerId} test`, { requestId, speakerId });
         
         LogHelpers.metadata.speakerId(logger, requestId, speakerId, result.metadata.speakerId || 0);
         LogHelpers.synthesis.resultReady(
@@ -944,12 +842,11 @@ const multiSpeakerScenario: TestScenario = {
       }
       
       // Test invalid speaker ID (999)
-      const invalidRequestId = generateRequestId();
-      LogHelpers.synthesis.requested(logger, invalidRequestId, 'Invalid speaker test', 999);
+      const requestIdInvalid = generateRequestId();
+      LogHelpers.synthesis.requested(logger, requestIdInvalid, 'Invalid speaker test', 999);
+      const invalidResult = await provider.synthesize('Invalid speaker test', { requestId: requestIdInvalid, speakerId: 999 });
       
-      const invalidResult = await provider.synthesize('Invalid speaker test', { speakerId: 999 });
-      
-      LogHelpers.metadata.speakerId(logger, invalidRequestId, 999, invalidResult.metadata.speakerId || 0);
+      LogHelpers.metadata.speakerId(logger, requestIdInvalid, 999, invalidResult.metadata.speakerId || 0);
       
       assertions.push({
         name: 'Invalid speaker ID falls back to 0',
@@ -1066,7 +963,7 @@ const flashFloodScenario: TestScenario = {
         
         LogHelpers.synthesis.requested(logger, requestId, text);
         
-        const promise = provider.synthesize(text).then(result => {
+        const promise = provider.synthesize(text, { requestId }).then(result => {
           LogHelpers.synthesis.resultReady(
             logger,
             requestId,
@@ -1251,7 +1148,9 @@ const granularCancelScenario: TestScenario = {
         
         let selfHealed = false;
         try {
-          const result = await provider.synthesize('Post-cancellation self-healing test.');
+          const requestIdHeal = generateRequestId();
+          LogHelpers.synthesis.requested(logger, requestIdHeal, 'Post-cancellation self-healing test.');
+          const result = await provider.synthesize('Post-cancellation self-healing test.', { requestId: requestIdHeal });
           selfHealed = result.audioData.length > 0;
         } catch (err) {
           selfHealed = false;
@@ -1311,17 +1210,101 @@ const granularCancelScenario: TestScenario = {
   }
 };
 
+const unifiedAssetResolutionScenario: TestScenario = {
+  id: 'unified-asset-resolution',
+  name: 'Unified Asset Resolution',
+  description: 'Verify Service Worker intercepts /assets/* and attaches x-piper-sw header',
+  requiresCacheReset: false,
+  
+  async execute(context: TestContext): Promise<TestResult> {
+    const { logger } = context;
+    const assertions: TestResult['assertions'] = [];
+    const startTime = Date.now();
+    
+    LogHelpers.test.scenarioStart(logger, 'unified-asset-resolution', 'Unified Asset Resolution');
+    
+    try {
+      // 1. Verify Service Worker is controlling the page
+      const isControlled = !!navigator.serviceWorker.controller;
+      assertions.push({
+        name: 'Service Worker controlling page',
+        passed: isControlled,
+        expected: true,
+        actual: isControlled
+      });
+
+      if (!isControlled) {
+        throw new Error("Service Worker not active. Please reload the page to allow the SW to take control.");
+      }
+
+      // 2. Fetch an asset and check for the interception header
+      // Use a small file that definitely exists
+      const testAssetUrl = '/assets/ort.wasm.min.mjs';
+      const response = await fetch(testAssetUrl);
+      
+      const swHeader = response.headers.get('x-piper-sw');
+      const intercepted = swHeader === 'intercepted';
+      
+      assertions.push({
+        name: 'Response includes x-piper-sw header',
+        passed: intercepted,
+        expected: 'intercepted',
+        actual: swHeader || 'null'
+      });
+
+      assertions.push({
+        name: 'Asset fetch successful (200 OK)',
+        passed: response.status === 200,
+        expected: 200,
+        actual: response.status
+      });
+
+      const duration = Date.now() - startTime;
+      const eventsLogged = logger.getEntries().length;
+      
+      const passed = assertions.every(a => a.passed);
+      if (passed) {
+        LogHelpers.test.scenarioPass(logger, 'unified-asset-resolution', duration, eventsLogged);
+      } else {
+        LogHelpers.test.scenarioFail(logger, 'unified-asset-resolution', 'Interception check failed', duration);
+      }
+      
+      return {
+        scenarioId: 'unified-asset-resolution',
+        scenarioName: 'Unified Asset Resolution',
+        passed,
+        duration,
+        eventsLogged,
+        assertions
+      };
+      
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      LogHelpers.test.scenarioFail(logger, 'unified-asset-resolution', String(error), duration);
+      return {
+        scenarioId: 'unified-asset-resolution',
+        scenarioName: 'Unified Asset Resolution',
+        passed: false,
+        duration,
+        eventsLogged: logger.getEntries().length,
+        assertions,
+        error: String(error)
+      };
+    }
+  }
+};
+
 /**
  * All available test scenarios
  */
 export const TEST_SCENARIOS: TestScenario[] = [
+  unifiedAssetResolutionScenario,
   fifoOrderVerificationScenario,
   hotswapStressScenario,
   memoryPressureScenario,
   downloadCancelScenario,
   sha256IntegrityScenario,
   callbackModuleScenario,
-  cdnEntryPointScenario,
   speedVolumeScenario,
   multiSpeakerScenario,
   flashFloodScenario,

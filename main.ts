@@ -226,7 +226,7 @@ async function initProvider(options: {
     LogHelpers.lifecycle.providerCreated(logger!);
   }
   
-  LogHelpers.lifecycle.initRequested(logger!, modelId, 2, true);
+  LogHelpers.lifecycle.initRequested(logger!, modelId, 2);
   btnInit.disabled = true;
   statusEl.innerText = `Initializing ${modelId}...`;
   
@@ -241,6 +241,20 @@ async function initProvider(options: {
       }
     });
     LogHelpers.lifecycle.promotionComplete(logger!, modelId, 2);
+
+    const swStatusIndicator = document.getElementById('swStatusIndicator')!;
+    const swStateLabel = document.getElementById('swStateLabel')!;
+    
+    if (navigator.serviceWorker.controller) {
+      swStatusIndicator.className = 'state-indicator ready';
+      swStateLabel.innerText = 'ACTIVE (Intercepting /assets/*)';
+      logger!.log({ category: 'LIFECYCLE', level: 'SUCCESS', event: 'SW_STATUS', data: { status: 'Active' } });
+    } else {
+      swStatusIndicator.className = 'state-indicator busy';
+      swStateLabel.innerText = 'INACTIVE (Initial load/Reload needed)';
+      logger!.log({ category: 'LIFECYCLE', level: 'WARNING', event: 'SW_STATUS', data: { status: 'Inactive' } });
+    }
+
     statusEl.innerText = `Ready: ${modelId}`;
     setFarmState('ready');
   } catch (err) {
@@ -648,7 +662,7 @@ function updateDownloadUI() {
 // Step 1: Initialize
 modelSelect.onchange = () => {
   initLogger();
-  LogHelpers.lifecycle.initRequested(logger!, modelSelect.value, 2, true);
+  LogHelpers.lifecycle.initRequested(logger!, modelSelect.value, 2);
   initProvider();
 };
 

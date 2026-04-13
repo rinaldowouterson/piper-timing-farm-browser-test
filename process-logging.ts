@@ -288,8 +288,8 @@ export const LogHelpers = {
     providerCreated: (logger: ProcessLogger) => 
       logger.log({ category: 'LIFECYCLE', level: 'INFO', event: 'PROVIDER_CREATED', data: {} }),
     
-    initRequested: (logger: ProcessLogger, modelId: string, cpuInstances: number, prioritizeSelected: boolean) =>
-      logger.log({ category: 'LIFECYCLE', level: 'INFO', event: 'INIT_REQUESTED', modelId, data: { cpuInstances, prioritizeSelected } }),
+    initRequested: (logger: ProcessLogger, modelId: string, cpuInstances: number) =>
+      logger.log({ category: 'LIFECYCLE', level: 'INFO', event: 'INIT_REQUESTED', modelId, data: { cpuInstances } }),
     
     initStaleCheck: (logger: ProcessLogger, latestId: string, currentId: string) =>
       logger.log({ category: 'LIFECYCLE', level: 'DEBUG', event: 'INIT_STALE_CHECK', data: { latestRequestId: latestId, currentRequestId: currentId } }),
@@ -302,8 +302,8 @@ export const LogHelpers = {
   },
 
   download: {
-    queued: (logger: ProcessLogger, modelId: string, priority: boolean) =>
-      logger.log({ category: 'DOWNLOAD', level: 'INFO', event: 'DOWNLOAD_QUEUED', modelId, data: { priority } }),
+    queued: (logger: ProcessLogger, modelId: string) =>
+      logger.log({ category: 'DOWNLOAD', level: 'INFO', event: 'DOWNLOAD_QUEUED', modelId, data: {} }),
     
     started: (logger: ProcessLogger, modelId: string, url: string, expectedSize?: number) =>
       logger.log({ category: 'DOWNLOAD', level: 'INFO', event: 'DOWNLOAD_STARTED', modelId, data: { url, expectedSize } }),

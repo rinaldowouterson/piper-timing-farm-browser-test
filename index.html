@@ -198,6 +198,18 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
+      <!-- ============ STEP 0: Infrastructure ============ -->
+      <div class="card" id="infraCard">
+        <h2>⓪ Infrastructure Status</h2>
+        <div id="swStatusIndicator" class="state-indicator idle">
+          <span class="dot"></span>
+          <span id="swStateLabel">Checking Service Worker...</span>
+        </div>
+        <p style="font-size: 0.65rem; color: #8b949e; margin-top: -0.5rem;">
+          Asset interception ensures same-origin WASM delivery and OPFS caching.
+        </p>
+      </div>
+
       <!-- ============ STEP 1: Initialize ============ -->
       <div class="card">
         <h2>① Initialize Provider</h2>
@@ -357,9 +369,9 @@
             <span class="test-desc">Viseme extraction</span>
             <span class="test-status"></span>
           </button>
-          <button class="test-btn" data-scenario="cdn-entry-point">
-            <span class="test-name">CDN Entry</span>
-            <span class="test-desc">jsDelivr assets</span>
+          <button class="test-btn" data-scenario="unified-asset-resolution">
+            <span class="test-name">Unified Resolution</span>
+            <span class="test-desc">Asset interception check</span>
             <span class="test-status"></span>
           </button>
           <button class="test-btn" data-scenario="speed-volume">

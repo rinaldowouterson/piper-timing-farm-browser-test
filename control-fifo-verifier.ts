@@ -160,7 +160,7 @@ export async function runFifoTest(
   
   // Ensure provider is initialized
   if (!provider.isInitialized()) {
-    LogHelpers.lifecycle.initRequested(logger, 'en_US-bryce-medium', 2, true);
+    LogHelpers.lifecycle.initRequested(logger, 'en_US-bryce-medium', 2);
     await provider.init({
       modelId: 'en_US-bryce-medium',
       voiceId: 'en_US-bryce-medium',
@@ -179,7 +179,7 @@ export async function runFifoTest(
     verifier.recordRequest(requestId);
     LogHelpers.synthesis.requested(logger, requestId, text);
     
-    const promise = provider.synthesize(text).then(result => {
+    const promise = provider.synthesize(text, { requestId }).then(result => {
       verifier.recordResult(requestId);
       LogHelpers.synthesis.resultReady(
         logger, 

@@ -1294,6 +1294,98 @@ const unifiedAssetResolutionScenario: TestScenario = {
   }
 };
 
+// ============================================
+// SCENARIO: Callback Module FAILURE Test
+// ============================================
+
+const callbackModuleFailureScenario: TestScenario = {
+  id: 'callback-module-failure',
+  name: 'Callback Failure Test',
+  description: 'Verify behavior when callback module fails to load (guaranteed fail)',
+  requiresCacheReset: false,
+
+  async execute(context: TestContext): Promise<TestResult> {
+    const { provider, logger } = context;
+    const assertions: TestResult['assertions'] = [];
+    const startTime = Date.now();
+
+    LogHelpers.test.scenarioStart(logger, 'callback-module-failure', 'Callback Module FAILURE Test');
+
+    try {
+      // Initialize with a NON-EXISTENT callback module
+      // This is guaranteed to fail during dynamic import in the worker
+      await provider.init({
+        modelId: 'en_US-bryce-medium',
+        voiceId: 'en_US-bryce-medium',
+        cpuInstances: 2,
+        callbackModule: {
+          path: '/path/to/non-existent-module.js',
+          functionName: 'nonExistentFunction'
+        }
+      });
+
+      LogHelpers.lifecycle.promotionComplete(logger, 'en_US-bryce-medium', 2);
+
+      // Synthesize (this might still work depending on if init catches the error)
+      const requestId = generateRequestId();
+      LogHelpers.synthesis.requested(logger, requestId, 'This should show a callback failure');
+
+      const result = await provider.synthesize('This should show a callback failure', { requestId });
+
+      LogHelpers.synthesis.resultReady(
+        logger,
+        requestId,
+        result.metadata.modelId || 'unknown',
+        result.durationMs,
+        result.metadata.generationTimeMs || 0
+      );
+
+      // This assertion SHOULD fail if the system is working as intended (failing on bad callback)
+      assertions.push({
+        name: 'Callback result missing (expected)',
+        passed: result.callbackResult === undefined,
+        expected: 'callbackResult undefined',
+        actual: result.callbackResult === undefined ? 'Undefined' : 'Defined'
+      });
+
+      // We explicitly make this test FAIL by adding a false assertion
+      assertions.push({
+        name: 'Intentional Failure for Debugging',
+        passed: false,
+        expected: 'True',
+        actual: 'False'
+      });
+
+      const duration = Date.now() - startTime;
+      const eventsLogged = logger.getEntries().length;
+
+      LogHelpers.test.scenarioFail(logger, 'callback-module-failure', 'Intentional Failure', duration);
+
+      return {
+        scenarioId: 'callback-module-failure',
+        scenarioName: 'Callback Failure Test',
+        passed: false, // Guaranteed to fail
+        duration,
+        eventsLogged,
+        assertions
+      };
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      LogHelpers.test.scenarioFail(logger, 'callback-module-failure', String(error), duration);
+      return {
+        scenarioId: 'callback-module-failure',
+        scenarioName: 'Callback Failure Test',
+        passed: false,
+        duration,
+        eventsLogged: logger.getEntries().length,
+        assertions,
+        error: String(error)
+      };
+    }
+  }
+};
+
 /**
  * All available test scenarios
  */
@@ -1308,5 +1400,6 @@ export const TEST_SCENARIOS: TestScenario[] = [
   speedVolumeScenario,
   multiSpeakerScenario,
   flashFloodScenario,
-  granularCancelScenario
+  granularCancelScenario,
+  callbackModuleFailureScenario
 ];

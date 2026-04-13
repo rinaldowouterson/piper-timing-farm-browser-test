@@ -191,7 +191,25 @@ async function initProvider(options: {
   
   if (!provider) {
     provider = createPiperProvider();
-    
+    LogHelpers.lifecycle.providerCreated(logger!);
+
+    // Wire up worker-thread logging bridge
+    provider.onLog((log) => {
+      const levelMap: Record<string, any> = {
+        'info': 'INFO',
+        'warn': 'WARNING',
+        'error': 'ERROR',
+        'debug': 'DEBUG'
+      };
+      logger!.log({
+        category: 'WORKER',
+        level: levelMap[log.level] || 'INFO',
+        event: 'WORKER_INTERNAL_LOG',
+        workerId: log.workerId,
+        data: { message: log.message }
+      });
+    });
+
     // Bind the global observability event subscriber
     provider.onQueueStatus(event => {
       let row = document.getElementById(`row-${event.requestId}`);
@@ -223,8 +241,6 @@ async function initProvider(options: {
         refreshBusyState();
       }
     });
-
-    LogHelpers.lifecycle.providerCreated(logger!);
   }
   
   LogHelpers.lifecycle.initRequested(logger!, modelId, 2);

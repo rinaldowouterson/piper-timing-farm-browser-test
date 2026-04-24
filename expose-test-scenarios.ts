@@ -569,7 +569,9 @@ const callbackModuleScenario: TestScenario = {
         cpuInstances: 2,
         callbackModule: {
           path: '/process-viseme-callback.js',
-          functionName: 'processVisemes'
+          functionName: 'processVisemes',
+          /** SHA-256 for process-viseme-callback.js */
+          integrity: '31a29cd1bd6d5a0fe141032805462dd2abb2a3d36c8cfac36bdf27174eb0552e'
         }
       });
       
@@ -1306,81 +1308,63 @@ const callbackModuleFailureScenario: TestScenario = {
 
   async execute(context: TestContext): Promise<TestResult> {
     const { provider, logger } = context;
-    const assertions: TestResult['assertions'] = [];
     const startTime = Date.now();
 
     LogHelpers.test.scenarioStart(logger, 'callback-module-failure', 'Callback Module FAILURE Test');
 
     try {
-      // Initialize with a NON-EXISTENT callback module
-      // This is guaranteed to fail during dynamic import in the worker
+      // 1. Initialize with an intentionally POISONED hash
+      // The browser orchestrator will detect the mismatch and throw a fatal error.
       await provider.init({
         modelId: 'en_US-bryce-medium',
         voiceId: 'en_US-bryce-medium',
-        cpuInstances: 2,
+        cpuInstances: 1,
         callbackModule: {
-          path: '/path/to/non-existent-module.js',
-          functionName: 'nonExistentFunction'
+          path: '/process-viseme-callback.js',
+          functionName: 'processVisemes',
+          integrity: 'deadd00d00000000000000000000000000000000000000000000000000000000'
         }
       });
 
-      LogHelpers.lifecycle.promotionComplete(logger, 'en_US-bryce-medium', 2);
-
-      // Synthesize (this might still work depending on if init catches the error)
-      const requestId = generateRequestId();
-      LogHelpers.synthesis.requested(logger, requestId, 'This should show a callback failure');
-
-      const result = await provider.synthesize('This should show a callback failure', { requestId });
-
-      LogHelpers.synthesis.resultReady(
-        logger,
-        requestId,
-        result.metadata.modelId || 'unknown',
-        result.durationMs,
-        result.metadata.generationTimeMs || 0
-      );
-
-      // This assertion SHOULD fail if the system is working as intended (failing on bad callback)
-      assertions.push({
-        name: 'Callback result missing (expected)',
-        passed: result.callbackResult === undefined,
-        expected: 'callbackResult undefined',
-        actual: result.callbackResult === undefined ? 'Undefined' : 'Defined'
-      });
-
-      // We explicitly make this test FAIL by adding a false assertion
-      assertions.push({
-        name: 'Intentional Failure for Debugging',
-        passed: false,
-        expected: 'True',
-        actual: 'False'
-      });
-
+      // If we reach here, it's a failure (the system should have detonated)
       const duration = Date.now() - startTime;
-      const eventsLogged = logger.getEntries().length;
-
-      LogHelpers.test.scenarioFail(logger, 'callback-module-failure', 'Intentional Failure', duration);
-
-      return {
-        scenarioId: 'callback-module-failure',
-        scenarioName: 'Callback Failure Test',
-        passed: false, // Guaranteed to fail
-        duration,
-        eventsLogged,
-        assertions
-      };
-
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      LogHelpers.test.scenarioFail(logger, 'callback-module-failure', String(error), duration);
       return {
         scenarioId: 'callback-module-failure',
         scenarioName: 'Callback Failure Test',
         passed: false,
         duration,
         eventsLogged: logger.getEntries().length,
-        assertions,
-        error: String(error)
+        assertions: [{
+          name: 'Poisoned hash rejection',
+          passed: false,
+          expected: 'Integrity Mismatch Error',
+          actual: 'Resolved successfully (FAILURE)'
+        }]
+      };
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      
+      const errorStr = String(error);
+      const isCorrectError = errorStr.toLowerCase().includes('callback') || 
+                            errorStr.toLowerCase().includes('non-existent') ||
+                            errorStr.toLowerCase().includes('integrity');
+      
+      LogHelpers.test.scenarioPass(logger, 'callback-module-failure', duration, logger.getEntries().length);
+
+      return {
+        scenarioId: 'callback-module-failure',
+        scenarioName: 'Callback Failure Test',
+        passed: isCorrectError,
+        duration,
+        eventsLogged: logger.getEntries().length,
+        assertions: [{
+          name: 'Initialization rejected as expected',
+          passed: isCorrectError,
+          expected: 'Expected error regarding callback loading',
+          actual: errorStr
+        }],
+        error: errorStr
       };
     }
   }

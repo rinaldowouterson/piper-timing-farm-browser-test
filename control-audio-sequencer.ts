@@ -1,4 +1,5 @@
-import { AudioSynthesisResult, Sequencer, SequencerState } from './types/audio-interface';
+import { AudioSynthesisResult } from 'piper-timing-farm-browser';
+import { Sequencer, SequencerState } from './types/audio-interface';
 
 /**
  * Factory for a sequential audio playback orchestrator.

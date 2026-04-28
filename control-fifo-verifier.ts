@@ -6,11 +6,13 @@
  */
 
 import { ProcessLogger, LogHelpers } from './process-logging';
+import { TestResult } from './src/scenarios/types';
+import { PiperWorkerFarm } from 'piper-timing-farm-browser';
 
 export interface FifoVerifier {
   recordRequest: (requestId: string) => void;
   recordResult: (requestId: string) => void;
-  verify: () => boolean;
+  verify: () => TestResult;
   getStats: () => FifoStats;
   reset: () => void;
 }
@@ -51,7 +53,7 @@ export function createFifoVerifier(logger: ProcessLogger): FifoVerifier {
     LogHelpers.fifo.drain(logger, requestId, position, waitTimeMs);
   };
 
-  const verify = (): boolean => {
+  const verify = (): TestResult => {
     const mismatches: Array<{ position: number; expected: string; actual: string }> = [];
     
     // Compare arrays
@@ -92,7 +94,14 @@ export function createFifoVerifier(logger: ProcessLogger): FifoVerifier {
     
     LogHelpers.fifo.verifyComplete(logger, passed, requestOrder, resultOrder);
     
-    return passed;
+    if (passed) {
+      return { success: true, data: undefined };
+    } else {
+      return { 
+        success: false, 
+        error: `FIFO order verification failed: ${mismatches.length} mismatches found.` 
+      };
+    }
   };
 
   const getStats = (): FifoStats => {
@@ -146,12 +155,12 @@ export function generateRequestId(): string {
  * FIFO Test Scenario Runner
  */
 export async function runFifoTest(
-  provider: ReturnType<typeof import('piper-timing-farm-browser').createPiperProvider>,
+  provider: PiperWorkerFarm,
   logger: ProcessLogger,
   verifier: FifoVerifier,
   count: number = 50,
   textGenerator: (index: number) => string = (i) => `[#${i}] FIFO test sentence number ${i}.`
-): Promise<{ passed: boolean; stats: FifoStats }> {
+): Promise<TestResult<{ stats: FifoStats }>> {
   
   LogHelpers.test.scenarioStart(logger, 'fifo-verification', `FIFO Order Verification (${count} requests)`);
   
@@ -196,15 +205,15 @@ export async function runFifoTest(
   await Promise.all(promises);
   
   // Verify order
-  const passed = verifier.verify();
+  const result = verifier.verify();
   const stats = verifier.getStats();
   const duration = Date.now() - startTime;
   
-  if (passed) {
+  if (result.success) {
     LogHelpers.test.scenarioPass(logger, 'fifo-verification', duration, count * 4);
   } else {
     LogHelpers.test.scenarioFail(logger, 'fifo-verification', `${stats.mismatches} order mismatches`, duration);
   }
   
-  return { passed, stats };
+  return result.success ? { success: true, data: { stats } } : { success: false, error: result.error };
 }

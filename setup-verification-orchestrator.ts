@@ -8,13 +8,23 @@
  * - Detailed process logging
  */
 
-import { createPiperProvider, clearModelCache } from 'piper-timing-farm-browser';
+import { createPiperProvider, clearModelCache, clearInfraCache } from 'piper-timing-farm-browser';
 import { playRawAudio, stopAudio } from './process-audio-playback';
-import { createAudioSequencer } from './control-audio-sequential';
-import { AudioSynthesisResult } from './types/audio-interface';
+import { createAudioSequencer } from './control-audio-sequencer';
+import { AudioSynthesisResult } from 'piper-timing-farm-browser';
 import { createProcessLogger, ProcessLogger, LogHelpers, LogCategory } from './process-logging';
-import { createFifoVerifier, TEST_SCENARIOS, TestResult } from './expose-test-scenarios';
-import type { FifoVerifier } from './control-fifo-verifier';
+import { createFifoVerifier, FifoVerifier } from './control-fifo-verifier';
+import { featureScenarios } from './src/scenarios/resolve-feature-scenarios';
+import { integrityScenarios } from './src/scenarios/control-integrity-scenarios';
+import { stressScenarios } from './src/scenarios/resolve-stress-scenarios';
+import { TestScenario } from './src/scenarios/types';
+import { resolveSidebarUpdate, resetSidebarCoverage } from './src/utils/resolve-sidebar-updates';
+
+const TEST_SCENARIOS: TestScenario[] = [
+  ...featureScenarios,
+  ...integrityScenarios,
+  ...stressScenarios
+];
 
 // ============================================
 // UI Elements
@@ -38,6 +48,7 @@ const activePoolIdEl = document.getElementById('active-pool-id')!;
 const promotionStateEl = document.getElementById('promotion-state')!;
 
 const btnClearCache = document.getElementById('clear-cache-btn') as HTMLButtonElement;
+const btnClearInfra = document.getElementById('clear-infra-btn') as HTMLButtonElement;
 const statusEl = document.getElementById('status')!;
 
 // Manual Synthesis
@@ -94,13 +105,14 @@ let verifier: FifoVerifier | null = null;
  */
 const activeUIRows = new Set<string>();
 
-const testResults: Map<string, TestResult> = new Map();
 
 // ============================================
 // UI State Machine
 // ============================================
 
 type FarmState = 'idle' | 'ready' | 'busy' | 'terminated';
+// Audit Result Mapping
+const RESULT_MAP = new WeakMap<AudioSynthesisResult, HTMLElement>();
 
 function setFarmState(state: FarmState) {
   stateIndicator.className = `state-indicator ${state}`;
@@ -118,18 +130,21 @@ function setFarmState(state: FarmState) {
       btnManualSynth.disabled = false;
       btnStop.disabled = false;
       btnClearCache.disabled = false;
+      btnClearInfra.disabled = false;
       break;
     case 'busy':
-      stateLabel.textContent = `SYNTHESIZING — ${activeUIRows.size} active`;
+      btnInit.disabled = true;
       btnManualSynth.disabled = false;
       btnStop.disabled = false;
-      btnCancelAll.disabled = false;
+      btnClearCache.disabled = true;
+      btnClearInfra.disabled = true;
       break;
     case 'terminated':
-      stateLabel.textContent = 'TERMINATED — Use Step ① to restart';
+      btnInit.disabled = false;
       btnManualSynth.disabled = true;
       btnStop.disabled = true;
       btnClearCache.disabled = false;
+      btnClearInfra.disabled = false;
       btnCancelAll.disabled = true;
       break;
   }
@@ -178,8 +193,8 @@ async function initProvider(options: {
     sequencer = createAudioSequencer(audioCtx);
     sequencer.onPlay = (result) => {
       document.querySelectorAll('.result-card.now-playing').forEach(el => el.classList.remove('now-playing'));
-      const cards = document.querySelectorAll('.result-card');
-      const target = Array.from(cards).find(c => (c as any)._result === result);
+      const cards = document.querySelectorAll('.audit-row');
+      const target = Array.from(cards).find(c => RESULT_MAP.get(result as any) === c);
       if (target) {
         target.classList.add('now-playing');
         target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -341,7 +356,11 @@ function handleSynthesisResult(_text: string, result: AudioSynthesisResult, row:
   const cancelBtn = row.querySelector('.cancel-row-btn') as HTMLButtonElement;
 
   const modelId = result.metadata.modelId || 'unknown';
-  modelCell.innerHTML = `<span class="tag ${modelId.includes('uk') ? 'uk' : 'en'}">${modelId}</span>`;
+  modelCell.innerHTML = '';
+  const tag = document.createElement('span');
+  tag.className = `tag ${modelId.includes('uk') ? 'uk' : 'en'}`;
+  tag.textContent = modelId;
+  modelCell.appendChild(tag);
   
   durationCell.textContent = `${Math.round(result.durationMs)}ms`;
   
@@ -357,7 +376,7 @@ function handleSynthesisResult(_text: string, result: AudioSynthesisResult, row:
   };
   if (cancelBtn) cancelBtn.disabled = true;
   
-  (row as any)._result = result;
+  RESULT_MAP.set(result, row);
 }
 
 function markRowError(row: HTMLElement, _requestId: string, errorMsg?: string) {
@@ -437,7 +456,14 @@ async function queueSynthesis(text: string, options: { speakerId?: number; speed
       if (row) {
         row.style.borderColor = 'var(--danger)';
         const modelCell = row.querySelector('.model-cell');
-        if (modelCell) modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">FAILED</span>`;
+        if (modelCell) {
+          modelCell.innerHTML = '';
+          const tag = document.createElement('span');
+          tag.className = 'tag';
+          tag.style.background = 'var(--danger)';
+          tag.textContent = 'FAILED';
+          modelCell.appendChild(tag);
+        }
       }
       LogHelpers.test.scenarioFail(logger, 'synthesis', String(err), 0);
     }
@@ -452,7 +478,7 @@ function cancelAllSynthesis() {
   if (!provider || !logger) return;
 
   const count = activeUIRows.size;
-  logger!.log({ category: 'SYNTHESIS' as LogCategory, level: 'WARN' as any, event: 'CANCEL_ALL_SYNTHESIS', data: {
+  logger!.log({ category: 'SYNTHESIS', level: 'WARNING', event: 'CANCEL_ALL_SYNTHESIS', data: {
     activeRequests: count,
     action: 'Terminating all busy workers and spawning replacements'
   }});
@@ -494,90 +520,81 @@ async function resetCache() {
   }
 }
 
+async function resetInfraCache() {
+  initLogger();
+  LogHelpers.cache.opfsClearStart(logger!);
+  
+  try {
+    if (provider) {
+      // Use provider method for coordinated reset
+      await (provider as any).clearPiperInfraCache();
+      provider.terminate();
+      provider = null;
+    } else {
+      // Use standalone method if no active provider
+      await clearInfraCache();
+    }
+
+    LogHelpers.cache.opfsClearComplete(logger!, 0);
+    statusEl.innerText = "Infra Cache Reset! Refresh required.";
+    setFarmState('idle');
+  } catch (err: any) {
+    statusEl.innerText = "Error: " + err.message;
+    LogHelpers.test.scenarioFail(logger!, 'infra-clear', err.message, 0);
+  }
+}
+
 // ============================================
 // Test Scenario Execution
 // ============================================
 
-async function runScenario(scenarioId: string) {
+async function runScenario(scenario: TestScenario) {
   initLogger();
   
-  const scenario = TEST_SCENARIOS.find(s => s.id === scenarioId);
-  if (!scenario) {
-    LogHelpers.test.scenarioFail(logger!, scenarioId, 'Scenario not found', 0);
-    return;
-  }
-  
-  const btn = testScenarioGrid.querySelector(`[data-scenario="${scenarioId}"]`) as HTMLButtonElement;
+  const startTime = Date.now();
+  const btn = testScenarioGrid.querySelector(`[data-scenario="${scenario.name}"]`) as HTMLButtonElement;
   if (btn) {
     btn.classList.add('running');
     const statusBtnEl = btn.querySelector('.test-status')!;
     statusBtnEl.textContent = 'Running...';
   }
   
-  if (scenario.requiresCacheReset) {
-    await resetCache();
-  }
-  
   if (!provider) {
     await initProvider();
   }
   
-  // Wrap the provider for tests so the results organically feed into the newly generated UI rows!
-  const contextProvider = Object.create(provider);
-  contextProvider.synthesize = async (text: string, options?: any) => {
-    try {
-      const result = await provider!.synthesize(text, options);
-      const row = document.getElementById(`row-${options?.requestId}`);
-      if (row) handleSynthesisResult(text, result as AudioSynthesisResult, row);
-      return result;
-    } catch (err) {
-      const row = document.getElementById(`row-${options?.requestId}`);
-      if (row) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          // cancelled handled organically by event hook
-        } else {
-          row.style.borderColor = 'var(--danger)';
-          const modelCell = row.querySelector('.model-cell');
-          if (modelCell) modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">FAILED</span>`;
-        }
-      }
-      throw err;
-    }
-  };
-
-  const context = {
-    provider: contextProvider as NonNullable<typeof provider>,
-    logger: logger!,
-    verifier: verifier!,
-    audioContext: audioCtx!,
-    resetCache
-  };
-  
   try {
-    const result = await scenario.execute(context);
-    testResults.set(scenarioId, result);
+    const result = await scenario.execute(provider!);
+    const duration = Date.now() - startTime;
     
-    if (result.passed) {
+    if (result.success) {
       passedCount++;
       passedCountEl.textContent = passedCount.toString();
+      LogHelpers.test.scenarioPass(logger!, scenario.name, duration, 0);
+      
+      // Update Sidebar Coverage
+      resolveSidebarUpdate(scenario.name);
     } else {
       failedCount++;
       failedCountEl.textContent = failedCount.toString();
+      LogHelpers.test.scenarioFail(logger!, scenario.name, String(result.error), duration);
     }
+    
     pendingCount--;
     pendingCountEl.textContent = pendingCount.toString();
     
     if (btn) {
       btn.classList.remove('running');
-      btn.classList.add(result.passed ? 'passed' : 'failed');
+      btn.classList.add(result.success ? 'passed' : 'failed');
       const statusBtnEl = btn.querySelector('.test-status')!;
-      statusBtnEl.textContent = result.passed
-        ? `✓ ${result.duration}ms`
+      statusBtnEl.textContent = result.success
+        ? `✓ ${duration}ms`
         : `✗ ${result.error || 'Failed'}`;
     }
     
   } catch (err: any) {
-    LogHelpers.test.scenarioFail(logger!, scenarioId, String(err), 0);
+    const duration = Date.now() - startTime;
+    LogHelpers.test.scenarioFail(logger!, scenario.name, String(err), duration);
     
     if (btn) {
       btn.classList.remove('running');
@@ -588,12 +605,15 @@ async function runScenario(scenarioId: string) {
   }
 }
 
+
 async function runAllTests() {
   passedCount = 0;
   failedCount = 0;
   passedCountEl.textContent = '0';
   failedCountEl.textContent = '0';
   pendingCountEl.textContent = TEST_SCENARIOS.length.toString();
+  
+  resetSidebarCoverage();
   
   testScenarioGrid.querySelectorAll('.test-btn').forEach(btn => {
     btn.classList.remove('passed', 'failed', 'running');
@@ -602,7 +622,7 @@ async function runAllTests() {
   });
   
   for (const scenario of TEST_SCENARIOS) {
-    await runScenario(scenario.id);
+    await runScenario(scenario);
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 }
@@ -758,6 +778,7 @@ btnStop.onclick = () => {
 };
 
 btnClearCache.onclick = resetCache;
+btnClearInfra.onclick = resetInfraCache;
 
 // Speed/Volume sliders
 speedSlider.oninput = () => {
@@ -804,7 +825,10 @@ testScenarioGrid.addEventListener('click', async (e) => {
   const btn = target.closest('.test-btn') as HTMLButtonElement;
   
   if (btn && btn.dataset.scenario) {
-    await runScenario(btn.dataset.scenario);
+    const scenario = TEST_SCENARIOS.find(s => s.name === btn.dataset.scenario);
+    if (scenario) {
+      await runScenario(scenario);
+    }
   }
 });
 

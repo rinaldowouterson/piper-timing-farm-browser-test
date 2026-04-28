@@ -9,6 +9,43 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    /* ================ Feature Coverage Sidebar ================ */
+    #coverage-sidebar {
+      position: fixed;
+      right: 1rem;
+      top: 5rem;
+      width: 280px;
+      background: rgba(22, 27, 34, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    #coverage-sidebar h2 {
+      font-size: 0.85rem;
+      margin: 0 0 1rem 0;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .coverage-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      margin-bottom: 0.5rem;
+      color: var(--text-secondary);
+    }
+    .coverage-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #30363d;
+    }
+    .coverage-status.hit { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
     /* ================ State-Aware Buttons ================ */
     .btn-group-chrono {
       display: flex;
@@ -277,7 +314,10 @@
         <h2>④ Lifecycle</h2>
         <div class="controls-group">
           <button id="btnStop" class="danger" disabled>Terminate Farm (Full Shutdown)</button>
-          <button id="clear-cache-btn" style="background: #e74c3c;" disabled>Clear Model Cache (OPFS Nuke)</button>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <button id="clear-cache-btn" style="background: #e74c3c; flex: 1;" disabled title="Delete all model files from OPFS">Nuke Model Cache</button>
+            <button id="clear-infra-btn" style="background: #e67e22; flex: 1;" disabled title="Reset WASM assets and SW registration">Reset Infra Cache</button>
+          </div>
           <small style="font-size: 0.65rem; color: #8b949e;">After terminate, use Step ① to re-initialize.</small>
         </div>
         <div id="status" style="margin-top: 0.5rem; font-size: 0.8rem;">Ready. Press "Initialize" to begin.</div>
@@ -460,6 +500,20 @@
       </div>
     </main>
   </div>
-  <script type="module" src="/main.ts"></script>
+  <!-- Feature Coverage Sidebar -->
+  <div id="coverage-sidebar">
+    <h2>Library API Coverage</h2>
+    <div id="coverage-list">
+      <!-- Populated by setup-verification-orchestrator.ts -->
+      <div class="coverage-item"><span class="coverage-status" id="cov-init"></span> createPiperWorkerFarm</div>
+      <div class="coverage-item"><span class="coverage-status" id="cov-synthesize"></span> provider.synthesize</div>
+      <div class="coverage-item"><span class="coverage-status" id="cov-clear-infra"></span> clearPiperInfraCache</div>
+      <div class="coverage-item"><span class="coverage-status" id="cov-clear-model"></span> clearPiperModelCache</div>
+      <div class="coverage-item"><span class="coverage-status" id="cov-delete-model"></span> deletePiperModel</div>
+      <div class="coverage-item"><span class="coverage-status" id="cov-metrics"></span> provider.getMetrics</div>
+    </div>
+  </div>
+
+  <script type="module" src="/setup-verification-orchestrator.ts"></script>
 </body>
 </html>

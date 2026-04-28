@@ -1,27 +1,4 @@
-/**
- * Unified interfaces for Piper Timing Farm consumer logic.
- * Adheres to the central types registry protocol.
- */
-
-export interface PiperMetadata {
-  modelId?: string;
-  phonemeIds: number[];
-  phonemes?: string[];
-  durations?: Float32Array;
-  totalAudioDurationMs: number;
-  sampleRate: number;
-  hopSize: number;
-  generationTimeMs?: number;
-  speakerId?: number;
-}
-
-export interface AudioSynthesisResult {
-  audioData: Float32Array;
-  sampleRate: number;
-  durationMs: number;
-  metadata: PiperMetadata;
-  callbackResult?: any;
-}
+import { AudioSynthesisResult } from 'piper-timing-farm-browser';
 
 export interface SequencerState {
   isPaused: boolean;

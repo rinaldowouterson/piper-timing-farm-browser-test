@@ -8,7 +8,7 @@
  * - Detailed process logging
  */
 
-import { createPiperProvider, resolveCacheClearing } from 'piper-timing-farm-browser';
+import { createPiperProvider, clearModelCache } from 'piper-timing-farm-browser';
 import { playRawAudio, stopAudio } from './process-audio-playback';
 import { createAudioSequencer } from './control-audio-sequential';
 import { AudioSynthesisResult } from './types/audio-interface';
@@ -169,7 +169,7 @@ function initLogger() {
 
 async function initProvider(options: { 
   modelId?: string; 
-  callbackModule?: { path: string; functionName: string };
+  useCallback?: boolean;
 } = {}) {
   initLogger();
   
@@ -250,9 +250,8 @@ async function initProvider(options: {
   try {
     await provider.init({
       modelId,
-      voiceId: modelId,
       cpuInstances: 2,
-      callbackModule: options.callbackModule,
+      useCallback: options.useCallback ?? false,
       onProgress: (state) => {
         LogHelpers.download.progress(logger!, state.modelId, state.progress, state.bytesDownloaded, state.bytesTotal);
       }
@@ -264,7 +263,7 @@ async function initProvider(options: {
     
     if (navigator.serviceWorker.controller) {
       swStatusIndicator.className = 'state-indicator ready';
-      swStateLabel.innerText = 'ACTIVE (Intercepting /assets/*)';
+      swStateLabel.innerText = 'ACTIVE (Intercepting /piper-gate/*)';
       logger!.log({ category: 'LIFECYCLE', level: 'SUCCESS', event: 'SW_STATUS', data: { status: 'Active' } });
     } else {
       swStatusIndicator.className = 'state-indicator busy';
@@ -479,7 +478,7 @@ async function resetCache() {
   LogHelpers.cache.opfsClearStart(logger!);
   
   try {
-    await resolveCacheClearing();
+    await clearModelCache();
     
     if (provider) {
       provider.terminate();
@@ -622,7 +621,7 @@ setInterval(() => {
     activePoolIdEl.textContent = activeId || 'None';
     
     const downloads = provider.getDownloadState();
-    const isDownloading = Array.from(downloads.values()).some(s => s.state === 'downloading');
+    const isDownloading = Array.from(downloads.values()).some(s => s.status === 'downloading');
     
     if (isDownloading) {
       promotionStateEl.textContent = 'DOWNLOADING SHADOW...';
@@ -662,7 +661,7 @@ function updateDownloadUI() {
       const pctSpan = existing.querySelector('.download-info span:last-child')!;
       const bar = existing.querySelector('.progress-bar') as HTMLElement;
       
-      infoSpan.textContent = `${id.split('-')[1]} (${s.state})`;
+      infoSpan.textContent = `${id.split('-')[1]} (${s.status})`;
       pctSpan.textContent = `${pct}%`;
       bar.style.width = `${pct}%`;
     } else {
@@ -671,7 +670,7 @@ function updateDownloadUI() {
       item.className = 'download-item';
       item.innerHTML = `
         <div class="download-info">
-          <span>${id.split('-')[1]} (${s.state})</span>
+          <span>${id.split('-')[1]} (${s.status})</span>
           <span>${pct}%</span>
         </div>
         <div class="progress-container">

@@ -1,29 +1,635 @@
-import { downloadFile as e } from "@huggingface/hub";
+async function e(e, n) {
+	let r = new t(e.url, e.status, e.headers.get("X-Request-Id") ?? n?.requestId);
+	r.message = `Api error with status ${r.statusCode}${n?.message ? `. ${n.message}` : ""}`;
+	let i = [`URL: ${r.url}`, r.requestId ? `Request ID: ${r.requestId}` : void 0].filter(Boolean).join(". ");
+	if (e.headers.get("Content-Type")?.startsWith("application/json")) {
+		let t = await e.json();
+		r.message = t.error || t.message || r.message, t.error_description && (r.message = r.message ? r.message + `: ${t.error_description}` : t.error_description), r.data = t;
+	} else r.data = { message: await e.text() };
+	throw r.message += `. ${i}`, r;
+}
+var t = class extends Error {
+	statusCode;
+	url;
+	requestId;
+	data;
+	constructor(e, t, n, r) {
+		super(r), this.statusCode = t, this.requestId = n, this.url = e;
+	}
+}, n = class extends Error { };
+function r(e) {
+	if (!e.startsWith("hf_")) throw TypeError("Your access token must start with 'hf_'");
+}
+function i(e) {
+	if (e.accessToken) return r(e.accessToken), e.accessToken;
+	if (e.credentials?.accessToken) return r(e.credentials.accessToken), e.credentials.accessToken;
+}
+function a(e) {
+	if (typeof e != "string") return e;
+	if (e.startsWith("model/") || e.startsWith("models/")) throw TypeError("A repo designation for a model should not start with 'models/', directly specify the model namespace / name");
+	if (e.startsWith("space/")) throw TypeError("Spaces should start with 'spaces/', plural, not 'space/'");
+	if (e.startsWith("dataset/")) throw TypeError("Datasets should start with 'datasets/', plural, not 'dataset/'");
+	if (e.startsWith("bucket/")) throw TypeError("Buckets should start with 'buckets/', plural, not 'bucket/'");
+	let t = e.split("/").length - 1;
+	if (e.startsWith("spaces/")) {
+		if (t !== 2) throw TypeError("Space Id must include namespace and name of the space");
+		return {
+			type: "space",
+			name: e.slice(7)
+		};
+	}
+	if (e.startsWith("datasets/")) {
+		if (t > 2) throw TypeError("Too many slashes in repo designation: " + e);
+		return {
+			type: "dataset",
+			name: e.slice(9)
+		};
+	}
+	if (e.startsWith("buckets/")) {
+		if (t !== 2) throw TypeError("Bucket Id must include namespace and name of the bucket");
+		return {
+			type: "bucket",
+			name: e.slice(8)
+		};
+	}
+	if (t > 1) throw TypeError("Too many slashes in repo designation: " + e);
+	return {
+		type: "model",
+		name: e
+	};
+}
+typeof window < "u" && window.document, typeof self == "object" && self.constructor && self.constructor.name, new Promise((e) => { });
+var o = class extends Blob {
+	static async create(e, t) {
+		let n = t?.fetch ?? fetch, r = await n(e, {
+			method: "HEAD",
+			...t?.accessToken && { headers: { Authorization: `Bearer ${t.accessToken}` } }
+		}), i = Number(r.headers.get("content-length")), a = r.headers.get("content-type") || "";
+		return r.headers.get("accept-ranges") !== "bytes" || i < (t?.cacheBelow ?? 1e6) ? await (await n(e)).blob() : new o(e, 0, i, a, !0, n, t?.accessToken);
+	}
+	url;
+	start;
+	end;
+	contentType;
+	full;
+	fetch;
+	accessToken;
+	constructor(e, t, n, r, i, a, o) {
+		super([]), this.url = e, this.start = t, this.end = n, this.contentType = r, this.full = i, this.fetch = a, this.accessToken = o;
+	}
+	get size() {
+		return this.end - this.start;
+	}
+	get type() {
+		return this.contentType;
+	}
+	slice(e = 0, t = this.size) {
+		return new o(this.url, this.start + e, Math.min(this.start + t, this.end), this.contentType, e === 0 && t === this.size ? this.full : !1, this.fetch, this.accessToken);
+	}
+	async arrayBuffer() {
+		return (await this.fetchRange()).arrayBuffer();
+	}
+	async text() {
+		return (await this.fetchRange()).text();
+	}
+	stream() {
+		let e = new TransformStream();
+		return this.fetchRange().then((t) => t.body?.pipeThrough(e)).catch((t) => e.writable.abort(t.message)), e.readable;
+	}
+	fetchRange() {
+		let t = this.fetch;
+		return this.full ? t(this.url, { ...this.accessToken && { headers: { Authorization: `Bearer ${this.accessToken}` } } }).then((t) => t.ok ? t : e(t)) : t(this.url, {
+			headers: {
+				Range: `bytes=${this.start}-${this.end - 1}`,
+				...this.accessToken && { Authorization: `Bearer ${this.accessToken}` }
+			}
+		}).then((t) => t.ok ? t : e(t));
+	}
+};
+function s(e, t) {
+	let n = e.length, r = new Uint8Array(n + t.length);
+	return r.set(e), r.set(t, n), r;
+}
+function c(e, t) {
+	let n = 0;
+	return n |= e[t++] << 0, n |= e[t++] << 8, n |= e[t++] << 16, n |= e[t++] << 24, n |= e[t++] << 32, n |= e[t++] << 40, n |= e[t++] << 48, n |= e[t++] << 56, n;
+}
+function l(e, t) {
+	let n = 0;
+	return n |= e[t++] << 0, n |= e[t++] << 8, n |= e[t++] << 16, n |= e[t++] << 24, n;
+}
+var u = 4, d = 65536;
+C(5 << 20), S();
+var f = 407708164, p = 4, m = 8, h = 16, g = 64, _ = 192, v = 2147483648, y = 4, b = 7, x = {
+	4: 65536,
+	5: 262144,
+	6: 1048576,
+	7: 4194304
+};
+function S() {
+	try {
+		return new Uint32Array(d);
+	} catch {
+		let e = Array(d);
+		for (let t = 0; t < d; t++) e[t] = 0;
+		return e;
+	}
+}
+function C(e) {
+	return new Uint8Array(e);
+}
+function w(e, t, n) {
+	return e.slice(t, n);
+}
+function T(e) {
+	let t = 0;
+	if (l(e, t) !== f) throw Error("invalid magic number");
+	t += 4;
+	let n = e[t++];
+	if ((n & _) !== g) throw Error("incompatible descriptor version " + (n & _));
+	let r = (n & h) !== 0, i = (n & m) !== 0, a = e[t++] >> y & b;
+	if (x[a] === void 0) throw Error("invalid block size " + a);
+	let o = x[a];
+	if (i) return c(e, t);
+	t++;
+	let s = 0;
+	for (; ;) {
+		let n = l(e, t);
+		if (t += 4, n & v ? (n &= ~v, s += n) : n > 0 && (s += o), n === 0) return s;
+		r && (t += 4), t += n;
+	}
+}
+function E(e, t, n, r, i) {
+	let a, o, s, c, l, d = t.copyWithin !== void 0 && t.fill !== void 0;
+	for (s = n + r; n < s;) {
+		let r = e[n++], f = r >> 4;
+		if (f > 0) {
+			if (f === 15) for (; f += e[n], e[n++] === 255;);
+			for (c = n + f; n < c;) t[i++] = e[n++];
+		}
+		if (n >= s) break;
+		if (a = r & 15, o = e[n++] | e[n++] << 8, a === 15) for (; a += e[n], e[n++] === 255;);
+		if (a += u, d && o === 1) t.fill(t[i - 1] | 0, i, i + a), i += a;
+		else if (d && o > a && a > 31) t.copyWithin(i, i - o, i - o + a), i += a;
+		else for (l = i - o, c = l + a; l < c;) t[i++] = t[l++] | 0;
+	}
+	return i;
+}
+function D(e, t) {
+	let n, r, i, a, o = 0, s = 0;
+	if (l(e, o) !== f) throw Error("invalid magic number");
+	if (o += 4, a = e[o++], (a & _) !== g) throw Error("incompatible descriptor version");
+	if (n = (a & h) !== 0, r = (a & p) !== 0, i = (a & m) !== 0, x[e[o++] >> y & b] === void 0) throw Error("invalid block size");
+	for (i && (o += 8), o++; ;) {
+		var c = l(e, o);
+		if (o += 4, c === 0) break;
+		if (n && (o += 4), (c & v) !== 0) {
+			c &= ~v;
+			for (let n = 0; n < c; n++) t[s++] = e[o++];
+		} else s = E(e, t, o, c, s), o += c;
+	}
+	return r && (o += 4), s;
+}
+function O(e, t) {
+	let n, r;
+	return t === void 0 && (t = T(e)), n = C(t), r = D(e, n), r !== t && (n = w(n, 0, r)), n;
+}
+var k = class {
+	ranges = [];
+	add(e, t) {
+		if (t <= e) throw TypeError("End must be greater than start");
+		let n = [];
+		for (let r = 0; r < this.ranges.length; r++) {
+			let i = this.ranges[r];
+			if (e < i.end && t > i.start && n.push({
+				index: r,
+				range: i
+			}), i.data !== null) throw Error("Overlapping range already has data");
+		}
+		if (n.length === 0) {
+			this.ranges.push({
+				start: e,
+				end: t,
+				refCount: 1,
+				data: null
+			}), this.ranges.sort((e, t) => e.start - t.start);
+			return;
+		}
+		let r = [], i = e;
+		for (let e = 0; e < n.length; e++) {
+			let { range: a } = n[e];
+			i < a.start ? r.push({
+				start: i,
+				end: a.start,
+				refCount: 1,
+				data: null
+			}) : a.start < i && r.push({
+				start: a.start,
+				end: i,
+				refCount: a.refCount,
+				data: null
+			}), r.push({
+				start: Math.max(i, a.start),
+				end: Math.min(t, a.end),
+				refCount: a.refCount + 1,
+				data: null
+			}), a.end > t && r.push({
+				start: t,
+				end: a.end,
+				refCount: a.refCount,
+				data: null
+			}), i = Math.max(i, a.end);
+		}
+		i < t && r.push({
+			start: i,
+			end: t,
+			refCount: 1,
+			data: null
+		});
+		let a = n[0].index, o = n[n.length - 1].index;
+		this.ranges.splice(a, o - a + 1, ...r), this.ranges.sort((e, t) => e.start - t.start);
+	}
+	remove(e, t) {
+		if (t <= e) throw TypeError("End must be greater than start");
+		let n = [];
+		for (let r = 0; r < this.ranges.length; r++) {
+			let i = this.ranges[r];
+			e < i.end && t > i.start && n.push({
+				index: r,
+				range: i
+			});
+		}
+		if (n.length === 0) throw Error("No ranges found to remove");
+		if (e !== n[0].range.start || t !== n[n.length - 1].range.end) throw Error("Range boundaries must match existing boundaries");
+		for (let e = 0; e < n.length; e++) {
+			let { range: t } = n[e];
+			t.refCount--;
+		}
+		this.ranges = this.ranges.filter((e) => e.refCount > 0);
+	}
+	getRanges(e, t) {
+		if (t <= e) throw TypeError("End must be greater than start");
+		return this.ranges.filter((n) => e < n.end && t > n.start);
+	}
+	getAllRanges() {
+		return [...this.ranges];
+	}
+}, A = 6e4, ee = 1e3, te = {
+	0: "None",
+	1: "LZ4",
+	2: "ByteGroupingLZ4"
+}, j = 8, M = class extends Blob {
+	fetch;
+	accessToken;
+	refreshUrl;
+	reconstructionUrl;
+	hash;
+	start = 0;
+	end = 0;
+	internalLogging = !1;
+	reconstructionInfo;
+	listener;
+	constructor(e) {
+		if (super([]), this.fetch = e.fetch ?? fetch.bind(globalThis), this.accessToken = i(e), this.refreshUrl = e.refreshUrl, this.end = e.size, this.reconstructionUrl = e.reconstructionUrl, this.hash = e.hash, this.listener = e.listener, this.internalLogging = e.internalLogging ?? !1, e.readToken) {
+			let t = F({
+				refreshUrl: this.refreshUrl,
+				initialAccessToken: this.accessToken
+			});
+			P.set(t, {
+				accessToken: e.readToken.accessToken,
+				expiresAt: /* @__PURE__ */ new Date(e.readToken.exp * 1e3),
+				casUrl: e.readToken.casUrl
+			});
+		}
+	}
+	get size() {
+		return this.end - this.start;
+	}
+	#e() {
+		let e = new M({
+			fetch: this.fetch,
+			hash: this.hash,
+			refreshUrl: this.refreshUrl,
+			reconstructionUrl: this.reconstructionUrl,
+			size: this.size
+		});
+		return e.accessToken = this.accessToken, e.start = this.start, e.end = this.end, e.reconstructionInfo = this.reconstructionInfo, e.listener = this.listener, e.internalLogging = this.internalLogging, e;
+	}
+	slice(e = 0, t = this.size) {
+		let n = this.#e();
+		return n.start = this.start + e, n.end = Math.min(this.start + t, this.end), (n.start !== this.start || n.end !== this.end) && (n.reconstructionInfo = void 0), n;
+	}
+	#t;
+	#n() {
+		return this.#t ||= (async () => {
+			let t = await L(this.accessToken, this.fetch, this.refreshUrl), n = await this.fetch(this.reconstructionUrl ?? `${t.casUrl}/v1/reconstructions/${this.hash}`, {
+				headers: {
+					Authorization: `Bearer ${t.accessToken}`,
+					Range: `bytes=${this.start}-${this.end - 1}`
+				}
+			});
+			if (!n.ok) throw await e(n);
+			return this.reconstructionInfo = await n.json(), this.reconstructionInfo;
+		})().finally(() => this.#t = void 0), this.#t;
+	}
+	async #r() {
+		if (this.size === 0) return new ReadableStream({
+			start(e) {
+				e.close();
+			}
+		});
+		this.reconstructionInfo || await this.#n();
+		let t = /* @__PURE__ */ new Map();
+		if (!this.reconstructionInfo) throw Error("Failed to load reconstruction info");
+		for (let e of this.reconstructionInfo.terms) {
+			let n = t.get(e.hash);
+			n || (n = new k(), t.set(e.hash, n)), n.add(e.range.start, e.range.end);
+		}
+		let n = this.listener, r = this.internalLogging ? (...e) => console.log(...e) : () => { };
+		async function* i(i, a, o, c) {
+			let l = 0, u = i.offset_into_first_range;
+			for (let d of i.terms) {
+				if (l >= o) break;
+				let f = t.get(d.hash);
+				if (!f) throw Error(`Failed to find range list for term ${d.hash}`);
+				{
+					let e = f.getRanges(d.range.start, d.range.end);
+					if (e.every((e) => e.data)) {
+						r("all data available for term", d.hash, u);
+						rangeLoop: for (let t of e) for (let e of t.data) {
+							if (u) {
+								let t = Math.min(u, e.byteLength);
+								if (e = e.slice(t), u -= t, !e.byteLength) continue;
+							}
+							if (e.byteLength > o - l && (e = e.slice(0, o - l)), l += e.byteLength, yield t.refCount > 1 ? e.slice() : e, n?.({
+								event: "progress",
+								progress: {
+									read: l,
+									total: o
+								}
+							}), l >= o) break rangeLoop;
+						}
+						f.remove(d.range.start, d.range.end);
+						continue;
+					}
+				}
+				let p = i.fetch_info[d.hash].find((e) => e.range.start <= d.range.start && e.range.end >= d.range.end);
+				if (!p) throw Error(`Failed to find fetch info for term ${d.hash} and range ${d.range.start}-${d.range.end}`);
+				r("term", d), r("fetchinfo", p), r("readBytesToSkip", u);
+				let m = await a(p.url, { headers: { Range: `bytes=${p.url_range.start}-${p.url_range.end}` } });
+				if (m.status === 403 && (i = await c(), m = await a(p.url, { headers: { Range: `bytes=${p.url_range.start}-${p.url_range.end}` } })), !m.ok) throw await e(m);
+				r("expected content length", m.headers.get("content-length"), "range", p.url_range, m.headers.get("content-range"));
+				let h = m.body?.getReader();
+				if (!h) throw Error("Failed to get reader from response body");
+				let g = !1, _ = p.range.start, v = f.getRanges(p.range.start, p.range.end), y, b = 0;
+				fetchData: for (; !g && l < o;) {
+					let e = await h.read();
+					if (n?.({ event: "read" }), g = e.done, r("read", e.value?.byteLength, "bytes", "total read", l, "toSkip", u), !e.value) {
+						r("no data in result, cancelled", e);
+						continue;
+					}
+					for (b += e.value.byteLength, y &&= (e.value = s(y, e.value), void 0); l < o && e.value?.byteLength;) {
+						if (e.value.byteLength < 8) {
+							y = e.value;
+							continue fetchData;
+						}
+						let t = new DataView(e.value.buffer, e.value.byteOffset, j), i = {
+							version: t.getUint8(0),
+							compressed_length: t.getUint8(1) | t.getUint8(2) << 8 | t.getUint8(3) << 16,
+							compression_scheme: t.getUint8(4),
+							uncompressed_length: t.getUint8(5) | t.getUint8(6) << 8 | t.getUint8(7) << 16
+						};
+						if (r("chunk header", i, "to skip", u), i.version !== 0) throw Error(`Unsupported chunk version ${i.version}`);
+						if (i.compression_scheme !== 0 && i.compression_scheme !== 1 && i.compression_scheme !== 2) throw Error(`Unsupported compression scheme ${te[i.compression_scheme] ?? i.compression_scheme}`);
+						if (e.value.byteLength < i.compressed_length + j) {
+							y = e.value;
+							continue fetchData;
+						}
+						e.value = e.value.slice(j);
+						let a = i.compression_scheme === 1 ? O(e.value.slice(0, i.compressed_length), i.uncompressed_length) : i.compression_scheme === 2 ? I(O(e.value.slice(0, i.compressed_length), i.uncompressed_length)) : e.value.slice(0, i.compressed_length), s = v.find((e) => _ >= e.start && _ < e.end), c = _ >= d.range.start && _ < d.range.end, f = c ? 2 : 1, p = !1;
+						if (s && s.refCount >= f && (s.data ??= [], s.data.push(a), p = !0), c) {
+							if (u) {
+								let e = Math.min(u, a.byteLength);
+								a = a.slice(u), u -= e;
+							}
+							a.byteLength > o - l && (a = a.slice(0, o - l)), a.byteLength && (r("yield", a.byteLength, "bytes", e.value.byteLength, "total read", l, p), l += a.byteLength, yield p ? a.slice() : a, n?.({
+								event: "progress",
+								progress: {
+									read: l,
+									total: o
+								}
+							}));
+						}
+						_++, e.value = e.value.slice(i.compressed_length);
+					}
+				}
+				if (g && l < o && b < p.url_range.end - p.url_range.start + 1) throw r("done", g, "total read", l, o, b), r("failed to fetch all data for term", d.hash), Error(`Failed to fetch all data for term ${d.hash}, fetched ${b} bytes out of ${p.url_range.end - p.url_range.start + 1}`);
+				r("done", g, "total read", l, o, b), r("cancel reader"), await h.cancel();
+			}
+		}
+		let a = i(this.reconstructionInfo, this.fetch, this.end - this.start, this.#n.bind(this));
+		return new ReadableStream({
+			async pull(e) {
+				let t = await a.next();
+				t.value && e.enqueue(t.value), t.done && e.close();
+			},
+			type: "bytes"
+		}, { highWaterMark: 1e3 });
+	}
+	async arrayBuffer() {
+		let e = await this.#r();
+		return new Response(e).arrayBuffer();
+	}
+	async text() {
+		let e = await this.#r();
+		return new Response(e).text();
+	}
+	async response() {
+		let e = await this.#r();
+		return new Response(e);
+	}
+	stream() {
+		let e = new TransformStream();
+		return this.#r().then((t) => t.pipeThrough(e)).catch((t) => e.writable.abort(t.message)), e.readable;
+	}
+}, N = /* @__PURE__ */ new Map(), P = /* @__PURE__ */ new Map();
+function F(e) {
+	return JSON.stringify([e.refreshUrl, e.initialAccessToken]);
+}
+function I(e) {
+	let t = Math.floor(e.byteLength / 4), n = e.byteLength % 4, r = t + +(n >= 1), i = r + t + +(n >= 2), a = i + t + +(n == 3), o = new Uint8Array(e.byteLength);
+	for (let t = 0, n = 0; t < e.byteLength; t += 4, n++) o[t] = e[n];
+	for (let t = 1, n = r; t < e.byteLength; t += 4, n++) o[t] = e[n];
+	for (let t = 2, n = i; t < e.byteLength; t += 4, n++) o[t] = e[n];
+	for (let t = 3, n = a; t < e.byteLength; t += 4, n++) o[t] = e[n];
+	return o;
+}
+async function L(e, t, n) {
+	let r = F({
+		refreshUrl: n,
+		initialAccessToken: e
+	}), i = P.get(r);
+	if (i && i.expiresAt > new Date(Date.now() + A)) return {
+		accessToken: i.accessToken,
+		casUrl: i.casUrl
+	};
+	let a = N.get(r);
+	if (a) return a;
+	let o = (async () => {
+		let i = await t(n, { headers: { ...e ? { Authorization: `Bearer ${e}` } : {} } });
+		if (!i.ok) throw Error(`Failed to get JWT token: ${i.status} ${await i.text()}`);
+		let a = await i.json(), o = {
+			accessToken: a.accessToken,
+			expiresAt: /* @__PURE__ */ new Date(a.exp * 1e3),
+			casUrl: a.casUrl
+		};
+		N.delete(r);
+		for (let [e, t] of P.entries()) if (t.expiresAt < new Date(Date.now() + A)) P.delete(e);
+		else break;
+		if (P.size >= ee) {
+			let e = P.keys().next().value;
+			e && P.delete(e);
+		}
+		return P.set(r, o), {
+			accessToken: a.accessToken,
+			casUrl: a.casUrl
+		};
+	})();
+	return N.set(r, o), o;
+}
+"ff".repeat(32), new Uint8Array([
+	72,
+	70,
+	82,
+	101,
+	112,
+	111,
+	77,
+	101,
+	116,
+	97,
+	68,
+	97,
+	116,
+	97,
+	0,
+	85,
+	105,
+	103,
+	69,
+	106,
+	123,
+	129,
+	87,
+	131,
+	165,
+	189,
+	217,
+	92,
+	205,
+	209,
+	74,
+	169
+]);
+function ne(e) {
+	return Object.fromEntries([...e.matchAll(/<(https?:[/][/][^>]+)>;\s+rel="([^"]+)"/g)].map(([, e, t]) => [t, e]));
+}
+async function re(t) {
+	let r = i(t), o = a(t.repo), s = t.hubUrl ?? "https://huggingface.co", c = o.type === "bucket" ? void 0 : t.revision ?? "main", l = `${s}/${o.type === "model" ? "" : `${o.type}s/`}${o.name}/${t.raw ? "raw" : "resolve"}${c ? `/${encodeURIComponent(c)}` : ""}/${t.path}` + (t.noContentDisposition ? "?noContentDisposition=1" : ""), u = await (t.fetch ?? fetch)(l, {
+		method: "GET",
+		headers: {
+			...r && { Authorization: `Bearer ${r}` },
+			Range: "bytes=0-0",
+			Accept: "application/vnd.xet-fileinfo+json, */*"
+		}
+	});
+	if (u.status === 404 && u.headers.get("X-Error-Code") === "EntryNotFound") return null;
+	if (!u.ok) throw await e(u);
+	let d, f;
+	if (u.headers.get("Content-Type")?.includes("application/vnd.xet-fileinfo+json")) {
+		if (d = parseInt(u.headers.get("X-Linked-Size") ?? "invalid"), isNaN(d)) throw new n("Invalid file size received in X-Linked-Size header");
+		let e = u.headers.get("X-Xet-Hash"), t = ne(u.headers.get("Link") ?? ""), r = (() => {
+			try {
+				return new URL(t["xet-reconstruction-info"]);
+			} catch {
+				return null;
+			}
+		})(), i = (() => {
+			try {
+				return new URL(t["xet-auth"]);
+			} catch {
+				return null;
+			}
+		})();
+		if (!e) throw new n("No hash received in X-Xet-Hash header");
+		if (!r || !i) throw new n("No xet-reconstruction-info or xet-auth link header");
+		f = {
+			hash: e,
+			refreshUrl: i,
+			reconstructionUrl: r
+		};
+	}
+	if (d === void 0 || isNaN(d)) {
+		let e = u.headers.get("content-range");
+		if (!e) throw new n("Expected size information");
+		let [, t] = e.split("/");
+		if (d = parseInt(t), isNaN(d)) throw new n("Invalid file size received");
+	}
+	let p = u.headers.get("X-Linked-ETag") ?? u.headers.get("ETag") ?? void 0;
+	if (!p) throw new n("Expected ETag");
+	return {
+		etag: p,
+		size: d,
+		xet: f,
+		url: u.url && (new URL(u.url).origin === new URL(s).origin || u.headers.get("X-Cache")?.endsWith(" cloudfront")) ? u.url : l
+	};
+}
+async function R(e) {
+	let t = i(e), n = e.downloadInfo ?? await re({
+		accessToken: t,
+		repo: e.repo,
+		path: e.path,
+		revision: e.revision,
+		hubUrl: e.hubUrl,
+		fetch: e.fetch,
+		raw: e.raw
+	});
+	return n ? n.xet && e.xet !== !1 ? new M({
+		refreshUrl: n.xet.refreshUrl.href,
+		reconstructionUrl: n.xet.reconstructionUrl.href,
+		fetch: e.fetch,
+		accessToken: t,
+		size: n.size,
+		readToken: typeof e.xet == "object" ? e.xet.readToken : void 0
+	}) : new o(new URL(n.url), 0, n.size, "", !0, e.fetch ?? fetch, t) : null;
+}
+//#endregion
 //#region src/control-asset-sw.ts
-var t = self;
-async function n(e) {
+var z = self;
+async function B(e) {
 	let t = await crypto.subtle.digest("SHA-256", e);
 	return Array.from(new Uint8Array(t)).map((e) => e.toString(16).padStart(2, "0")).join("");
 }
-async function r(e, t) {
-	return (await n(e)).toLowerCase() === t.toLowerCase();
+async function V(e, t) {
+	return (await B(e)).toLowerCase() === t.toLowerCase();
 }
-var i = "infra", a = "voices", o = {
+var H = "infra", U = "voices", W = {
 	"ort-wasm-simd-threaded.wasm": "be0e129949062ad50290ef94683fac8be5bb6156f709e030b7a5f1661a2f6c17",
 	"ort.wasm.min.mjs": "d5a6d7bc8ee587648fb3742dde8c0094d17cbd3822a68bbec8ddfcd4f2adb88e",
 	"ort-wasm-simd-threaded.mjs": "5687566b1bc1c8cf628d76c2ddb16b2a3b81a7997273d4666564880495088e57",
 	"piper_phonemize.data": "29f1025eb23a5b5c192cd14a6efbce4509402ff265405072ee6f7d1a09b78f8c",
 	"piper_phonemize.js": "fef0c2fc442d24fdef5c7c7cc37d5da2314407640fe11ab1bfe347c723dff19b",
 	"piper_phonemize.wasm": "b777cd107a91d2bcc6a1ea46f2c26a662a7407394fe84589198aeaa83dd7a9d6",
-	"piper-callback.js": ""
-}, s = {
+	"process-piper-synthesis.worker.js": "9cb8b5e5c9c32cb6de1efe3a49ad815ee689365ae43517a3750e9c7210e1f6fe",
+	"piper-callback.js": "c769d1f2b9d5ee7f0cb97858d68a21c2e1fc86312981d71f098560060e13f81b"
+}, G = {
 	"ort-wasm-simd-threaded.wasm": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.wasm",
 	"ort.wasm.min.mjs": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort.wasm.min.mjs",
 	"ort-wasm-simd-threaded.mjs": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.mjs",
 	"piper_phonemize.data": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.data",
 	"piper_phonemize.js": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.js",
 	"piper_phonemize.wasm": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.wasm"
-}, c = {
+}, K = {
 	"en_US-bryce-medium": {
 		onnx: "330c232c12b8a08eb241599190f2ee8ccd6072dce323d10e06684fb0cde8a241",
 		config: "7ceb1bc4af6d4e41b6d1edbb86c67e91e01eaa71f66db4cd0ae92ac704d415be"
@@ -68,7 +674,7 @@ var i = "infra", a = "voices", o = {
 		onnx: "3d9412227941720605876329ca2be7b9bcce6d8265779b483d6050b7c497045a",
 		config: "4e96e72917ca9b94edc77d6ccfee03a73f450ba2fc1ca93c2e562bc014e5aa55"
 	}
-}, l = {
+}, q = {
 	"en_US-bryce-medium": {
 		onnx: "https://huggingface.co/rinaldow/piper-onnx-durations/resolve/main/english/US/male/Bryce/en_US-bryce-medium.onnx",
 		config: "https://huggingface.co/rinaldow/piper-onnx-durations/resolve/main/english/US/male/Bryce/en_US-bryce-medium.onnx.json"
@@ -113,17 +719,17 @@ var i = "infra", a = "voices", o = {
 		onnx: "https://huggingface.co/rinaldow/piper-onnx-durations/resolve/main/ukrainian/multi/UkrainianTts/uk_UA-ukrainian_tts-medium.onnx",
 		config: "https://huggingface.co/rinaldow/piper-onnx-durations/resolve/main/ukrainian/multi/UkrainianTts/uk_UA-ukrainian_tts-medium.onnx.json"
 	}
-}, u = {
+}, J = {
 	".wasm": "application/wasm",
 	".mjs": "text/javascript",
 	".js": "text/javascript",
 	".data": "application/octet-stream",
 	".onnx": "application/octet-stream",
 	".json": "application/json"
-}, d = new BroadcastChannel("piper-download-progress");
-function f(e, t) {
+}, Y = new BroadcastChannel("piper-download-progress");
+function ie(e, t) {
 	let n = t instanceof Error;
-	d.postMessage({
+	Y.postMessage({
 		type: "error",
 		filename: e,
 		message: n ? t.message : String(t),
@@ -131,54 +737,61 @@ function f(e, t) {
 		code: n ? t.name : "UNKNOWN_ERROR"
 	});
 }
-t.addEventListener("install", () => {
-	t.skipWaiting();
-}), t.addEventListener("activate", (e) => {
-	e.waitUntil(t.clients.claim());
-}), t.addEventListener("fetch", (e) => {
-	let n = new URL(e.request.url);
-	if (n.searchParams.has("bypass-sw") || n.origin !== t.location.origin || !n.pathname.startsWith("/piper-gate/")) return;
-	let r = n.pathname.slice(12);
-	if (r) {
+function ae(e) {
+	return !!(e in W || e.endsWith(".onnx") || e.endsWith(".onnx.json"));
+}
+z.addEventListener("install", () => {
+	z.skipWaiting();
+}), z.addEventListener("activate", (e) => {
+	e.waitUntil(z.clients.claim());
+}), z.addEventListener("fetch", (e) => {
+	let t = new URL(e.request.url);
+	if (t.origin === z.location.origin && !t.pathname.startsWith("/piper-gate/")) {
+		let e = t.pathname.split("/").pop() || "";
+		ae(e) && console.warn(`[piper-gate] [Path Deviation] Detected request for Piper asset '${e}' at non-gateway path: ${t.pathname}. This request bypasses Service Worker integrity verification and OPFS caching. Please update the requester to use: /piper-gate/.../${e}`);
+	}
+	if (t.searchParams.has("bypass-sw") || t.origin !== z.location.origin || !t.pathname.startsWith("/piper-gate/")) return;
+	let n = t.pathname.slice(12);
+	if (n) {
 		if (e.request.method === "DELETE") {
-			e.respondWith(S(r));
+			e.respondWith(de(n));
 			return;
 		}
-		e.respondWith(p(r, e.request));
+		e.respondWith(oe(n, e.request));
 	}
 });
-async function p(e, t) {
+async function oe(e, t) {
 	try {
-		let n = C(e), r = e.split("/");
+		let n = fe(e), r = e.split("/");
 		if (r.length !== 2) return new Response(`[piper-gate] Invalid path format: ${e}`, { status: 400 });
 		let [i, a] = r;
-		return e === "piper-callback.js" || a === "piper-callback.js" ? await h() : i === "infra" ? await m(a, n) : i === "voices" ? await g(a, n, t) : new Response(`[piper-gate] Unknown directory: ${i}`, { status: 400 });
+		return e === "piper-callback.js" || a === "piper-callback.js" ? await ce() : i === "infra" ? await se(a, n) : i === "voices" ? await le(a, n, t) : new Response(`[piper-gate] Unknown directory: ${i}`, { status: 400 });
 	} catch (t) {
-		return f(e, t), new Response(t instanceof Error ? t.message : String(t), {
+		return ie(e, t), new Response(t instanceof Error ? t.message : String(t), {
 			status: 500,
 			statusText: "Piper Gateway Resolver Error"
 		});
 	}
 }
-async function m(e, t) {
-	let n = o[e];
+async function se(e, t) {
+	let n = W[e];
 	if (!n) return new Response(`[piper-gate] Unknown infra asset: ${e}`, { status: 404 });
-	let a = await y(i, e);
-	if (a) {
-		if (await r(a, n)) return console.log(`[piper-gate] Infra asset verified from OPFS: ${e}`), new Response(a, {
+	let r = await Z(H, e);
+	if (r) {
+		if (await V(r, n)) return console.log(`[piper-gate] [Cache Hit] '${e}' verified from OPFS.`), new Response(r, {
 			status: 200,
 			headers: {
 				"Content-Type": t,
 				"x-piper-sw": "verified"
 			}
 		});
-		console.warn(`[piper-gate] Corrupted infra asset detected, deleting: ${e}`), await x(i, e);
+		console.log(`[piper-gate] [Stale Cache] OPFS integrity mismatch for '${e}'. Deleting stale entry to trigger re-fetch.`), await $(H, e);
 	}
 	try {
-		let a = await fetch(`/piper-gate/infra/${e}`);
-		if (a.ok) {
-			let o = await a.arrayBuffer();
-			if (await r(o, n)) return await b(i, e, o), console.log(`[piper-gate] Infra asset downloaded and verified: ${e}`), new Response(o, {
+		let r = await fetch(`/piper-gate/infra/${e}`);
+		if (r.ok) {
+			let i = await r.arrayBuffer();
+			if (await V(i, n)) return await Q(H, e, i), console.log(`[piper-gate] [Cache Restored] '${e}' successfully re-downloaded, verified, and persisted to OPFS.`), new Response(i, {
 				status: 200,
 				headers: {
 					"Content-Type": t,
@@ -187,14 +800,14 @@ async function m(e, t) {
 			});
 			console.error(`[piper-gate] Local infra asset integrity mismatch: ${e}`);
 		}
-	} catch {}
-	let c = s[e];
-	if (!c) return new Response(`[piper-gate] No CDN URL for infra asset: ${e}`, { status: 404 });
+	} catch { }
+	let i = G[e];
+	if (!i) return new Response(`[piper-gate] No CDN URL for infra asset: ${e}`, { status: 404 });
 	try {
-		let a = await fetch(c);
-		if (!a.ok) return new Response(`[piper-gate] CDN returned ${a.status} for: ${e}`, { status: 502 });
-		let o = await a.arrayBuffer();
-		return await r(o, n) ? (await b(i, e, o), console.log(`[piper-gate] Infra asset from CDN verified: ${e}`), new Response(o, {
+		let r = await fetch(i);
+		if (!r.ok) return new Response(`[piper-gate] CDN returned ${r.status} for: ${e}`, { status: 502 });
+		let a = await r.arrayBuffer();
+		return await V(a, n) ? (await Q(H, e, a), console.log(`[piper-gate] Infra asset from CDN verified: ${e}`), new Response(a, {
 			status: 200,
 			headers: {
 				"Content-Type": t,
@@ -205,14 +818,14 @@ async function m(e, t) {
 		return console.error(`[piper-gate] CDN fetch failed for ${e}:`, t), new Response(`[piper-gate] CDN unreachable for: ${e}`, { status: 502 });
 	}
 }
-async function h() {
-	let e = o["piper-callback.js"];
+async function ce() {
+	let e = W["piper-callback.js"];
 	if (!e) return new Response("[piper-gate] Integrity Hash Missing: The 'piper-callback.js' hash must be explicitly set in the INFRA_SHA256_REGISTRY.", { status: 404 });
 	try {
 		let t = await fetch("/piper-callback.js");
 		if (!t.ok) return new Response("[piper-gate] File Missing: 'piper-callback.js' could not be found at the origin root.", { status: 404 });
 		let n = await t.arrayBuffer();
-		return await r(n, e) ? (console.log("[piper-gate] Sovereign Callback verified successfully."), new Response(n, {
+		return await V(n, e) ? (console.log("[piper-gate] Sovereign Callback verified successfully."), new Response(n, {
 			status: 200,
 			headers: {
 				"Content-Type": "text/javascript",
@@ -223,101 +836,101 @@ async function h() {
 		return console.error("[piper-gate] Sovereign Callback fetch failed:", e), new Response("[piper-gate] Internal Server Error: Failed to resolve callback.", { status: 500 });
 	}
 }
-async function g(t, n, i) {
-	let o = t.endsWith(".onnx.json"), s = o ? t.slice(0, -10) : t.slice(0, -5), u = o ? "config" : "onnx", f = i.headers.get("x-piper-cache-download") === "true", p = null, m = c[s];
-	if (m && (p = u === "onnx" ? m.onnx ?? null : m.config ?? null), !p) {
-		let e = i.headers.get(`x-piper-sha256-${u}`);
-		e && (p = e);
+async function le(e, t, n) {
+	let r = e.endsWith(".onnx.json"), i = r ? e.slice(0, -10) : e.slice(0, -5), a = r ? "config" : "onnx", o = n.headers.get("x-piper-cache-download") === "true", s = null, c = K[i];
+	if (c && (s = a === "onnx" ? c.onnx ?? null : c.config ?? null), !s) {
+		let e = n.headers.get(`x-piper-sha256-${a}`);
+		e && (s = e);
 	}
-	if (!p) {
-		let e = i.headers.get(`x-piper-url-${u}`);
-		e && (p = await v(e));
+	if (!s) {
+		let e = n.headers.get(`x-piper-url-${a}`);
+		e && (s = await ue(e));
 	}
-	if (!p) return console.error(`[piper-gate] No SHA-256 available for voice: ${t}`), new Response(`[piper-gate] SHA-256 required for voice asset: ${t}. Provide via x-piper-sha256-${u} header or use a registered model.`, { status: 403 });
-	let h = await y(a, t);
-	if (h) {
-		if (await r(h, p)) return console.log(`[piper-gate] Voice asset verified from OPFS: ${t}`), new Response(h, {
+	if (!s) return console.error(`[piper-gate] No SHA-256 available for voice: ${e}`), new Response(`[piper-gate] SHA-256 required for voice asset: ${e}. Provide via x-piper-sha256-${a} header or use a registered model.`, { status: 403 });
+	let l = await Z(U, e);
+	if (l) {
+		if (await V(l, s)) return console.log(`[piper-gate] [Cache Hit] Voice asset verified from OPFS: ${e}`), new Response(l, {
 			status: 200,
 			headers: {
-				"Content-Type": n,
+				"Content-Type": t,
 				"x-piper-sw": "verified"
 			}
 		});
-		console.warn(`[piper-gate] Corrupted voice asset detected, deleting: ${t}`), await x(a, t);
+		console.log(`[piper-gate] [Stale Cache] Voice integrity mismatch for '${e}'. Purging stale entry.`), await $(U, e);
 	}
-	let g = null;
-	if (m && l[s]) {
-		let e = l[s];
-		g = u === "onnx" ? e.onnx : e.config;
+	let u = null;
+	if (c && q[i]) {
+		let e = q[i];
+		u = a === "onnx" ? e.onnx : e.config;
 	}
-	if (!g) {
-		let e = i.headers.get(`x-piper-url-${u}`);
-		e && (g = e);
+	if (!u) {
+		let e = n.headers.get(`x-piper-url-${a}`);
+		e && (u = e);
 	}
-	if (!g) return new Response(`[piper-gate] No source URL for voice: ${t}`, { status: 404 });
+	if (!u) return new Response(`[piper-gate] No source URL for voice: ${e}`, { status: 404 });
 	try {
-		let o = _(g), s, c = 0;
-		if (o) {
-			console.log(`[piper-gate] Using HF Hub download for: ${t}`);
-			let n = await e({
-				repo: o.repo,
-				revision: o.revision,
-				path: o.path,
+		let r = X(u), i, a = 0;
+		if (r) {
+			console.log(`[piper-gate] Using HF Hub download for: ${e}`);
+			let t = await R({
+				repo: r.repo,
+				revision: r.revision,
+				path: r.path,
 				fetch: (e, t) => fetch(e, {
 					...t,
-					signal: i.signal
+					signal: n.signal
 				})
 			});
-			if (!n) return new Response(`[piper-gate] HF Hub failed to resolve: ${t}`, { status: 502 });
-			c = n.size, d.postMessage({
+			if (!t) return new Response(`[piper-gate] HF Hub failed to resolve: ${e}`, { status: 502 });
+			a = t.size, Y.postMessage({
 				type: "progress",
-				filename: t,
-				downloaded: c,
-				total: c
-			}), s = await n.arrayBuffer();
+				filename: e,
+				downloaded: a,
+				total: a
+			}), i = await t.arrayBuffer();
 		} else {
-			let e = await fetch(g, { signal: i.signal });
-			if (!e.ok) return new Response(`[piper-gate] Source returned ${e.status} for: ${t}`, { status: 502 });
-			c = Number(e.headers.get("Content-Length")) || 0;
-			let n = e.body?.getReader();
-			if (!n) return new Response(`[piper-gate] No response body for: ${t}`, { status: 502 });
-			let r = [], a = 0, o = 0;
+			let t = await fetch(u, { signal: n.signal });
+			if (!t.ok) return new Response(`[piper-gate] Source returned ${t.status} for: ${e}`, { status: 502 });
+			a = Number(t.headers.get("Content-Length")) || 0;
+			let r = t.body?.getReader();
+			if (!r) return new Response(`[piper-gate] No response body for: ${e}`, { status: 502 });
+			let o = [], s = 0, c = 0;
 			try {
-				for (;;) {
-					let { done: e, value: i } = await n.read();
-					if (e) break;
-					r.push(i), a += i.length;
-					let s = Date.now();
-					s - o > 100 && (d.postMessage({
+				for (; ;) {
+					let { done: t, value: n } = await r.read();
+					if (t) break;
+					o.push(n), s += n.length;
+					let i = Date.now();
+					i - c > 100 && (Y.postMessage({
 						type: "progress",
-						filename: t,
-						downloaded: a,
-						total: c || a
-					}), o = s);
+						filename: e,
+						downloaded: s,
+						total: a || s
+					}), c = i);
 				}
 			} finally {
-				n.releaseLock();
+				r.releaseLock();
 			}
-			s = await new Blob(r).arrayBuffer();
+			i = await new Blob(o).arrayBuffer();
 		}
-		return await r(s, p) ? (await b(a, t, s), console.log(`[piper-gate] Voice asset downloaded and verified: ${t}`), f ? new Response(null, {
+		return await V(i, s) ? (await Q(U, e, i), console.log(`[piper-gate] [Cache Restored] Voice asset '${e}' downloaded and verified.`), o ? new Response(null, {
 			status: 204,
 			headers: {
 				"x-piper-sw": "verified",
-				"x-piper-sha256": p
+				"x-piper-sha256": s
 			}
-		}) : new Response(s, {
+		}) : new Response(i, {
 			status: 200,
 			headers: {
-				"Content-Type": n,
+				"Content-Type": t,
 				"x-piper-sw": "verified"
 			}
-		})) : (console.error(`[piper-gate] Voice asset integrity mismatch: ${t}`), new Response(`[piper-gate] Integrity mismatch for: ${t}`, { status: 403 }));
-	} catch (e) {
-		return e instanceof Error && e.name === "AbortError" ? new Response(`[piper-gate] Download aborted: ${t}`, { status: 499 }) : (console.error(`[piper-gate] Download failed for ${t}:`, e), new Response(`[piper-gate] Download failed for: ${t}`, { status: 502 }));
+		})) : (console.error(`[piper-gate] Voice asset integrity mismatch: ${e}`), new Response(`[piper-gate] Integrity mismatch for: ${e}`, { status: 403 }));
+	} catch (t) {
+		return t instanceof Error && t.name === "AbortError" ? new Response(`[piper-gate] Download aborted: ${e}`, { status: 499 }) : (console.error(`[piper-gate] Download failed for ${e}:`, t), new Response(`[piper-gate] Download failed for: ${e}`, { status: 502 }));
 	}
 }
-function _(e) {
+function X(e) {
 	let t = e.match(/^https:\/\/huggingface\.co\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/);
 	return t ? {
 		repo: t[1],
@@ -325,8 +938,8 @@ function _(e) {
 		path: t[3]
 	} : null;
 }
-async function v(e) {
-	let t = _(e);
+async function ue(e) {
+	let t = X(e);
 	if (!t) return null;
 	try {
 		let e = t.path.split("/"), n = e.pop() || "", r = e.join("/"), i = `https://huggingface.co/api/models/${t.repo}/tree/${t.revision}/${r}`, a = await fetch(i);
@@ -335,14 +948,14 @@ async function v(e) {
 		return null;
 	}
 }
-async function y(e, t) {
+async function Z(e, t) {
 	try {
 		return await (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle(e, { create: !1 })).getFileHandle(t, { create: !1 })).getFile()).arrayBuffer();
 	} catch {
 		return null;
 	}
 }
-async function b(e, t, n) {
+async function Q(e, t, n) {
 	try {
 		let r = await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle(e, { create: !0 })).getFileHandle(t, { create: !0 })).createWritable();
 		await r.write(n), await r.close();
@@ -350,12 +963,12 @@ async function b(e, t, n) {
 		console.warn(`[piper-gate] OPFS write failed for ${e}/${t}:`, n);
 	}
 }
-async function x(e, t) {
+async function $(e, t) {
 	try {
 		await (await (await navigator.storage.getDirectory()).getDirectoryHandle(e, { create: !1 })).removeEntry(t);
-	} catch {}
+	} catch { }
 }
-async function S(e) {
+async function de(e) {
 	try {
 		let t = await navigator.storage.getDirectory();
 		if (e === "voices/" || e === "voices") {
@@ -385,7 +998,7 @@ async function S(e) {
 		return console.error(`[piper-gate] Deletion failed for ${e}:`, t), new Response("[piper-gate] Internal OPFS Error", { status: 500 });
 	}
 }
-function C(e) {
-	return u[e.substring(e.lastIndexOf("."))] ?? "application/octet-stream";
+function fe(e) {
+	return J[e.substring(e.lastIndexOf("."))] ?? "application/octet-stream";
 }
 //#endregion

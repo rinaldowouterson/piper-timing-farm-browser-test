@@ -163,7 +163,6 @@ export async function runFifoTest(
     LogHelpers.lifecycle.initRequested(logger, 'en_US-bryce-medium', 2);
     await provider.init({
       modelId: 'en_US-bryce-medium',
-      voiceId: 'en_US-bryce-medium',
       cpuInstances: 2
     });
     LogHelpers.lifecycle.promotionComplete(logger, 'en_US-bryce-medium', 2);

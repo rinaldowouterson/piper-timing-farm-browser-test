@@ -620,7 +620,7 @@ var H = "infra", U = "voices", W = {
 	"piper_phonemize.data": "29f1025eb23a5b5c192cd14a6efbce4509402ff265405072ee6f7d1a09b78f8c",
 	"piper_phonemize.js": "fef0c2fc442d24fdef5c7c7cc37d5da2314407640fe11ab1bfe347c723dff19b",
 	"piper_phonemize.wasm": "b777cd107a91d2bcc6a1ea46f2c26a662a7407394fe84589198aeaa83dd7a9d6",
-	"process-piper-synthesis.worker.js": "9cb8b5e5c9c32cb6de1efe3a49ad815ee689365ae43517a3750e9c7210e1f6fe",
+	"process-piper-synthesis.worker.js": "9bbf4214abbc3c24724e3ba012e0f3d416bd7e35d3ac9f96c0f87f3108c7821b",
 	"piper-callback.js": "c769d1f2b9d5ee7f0cb97858d68a21c2e1fc86312981d71f098560060e13f81b"
 }, G = {
 	"ort-wasm-simd-threaded.wasm": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.wasm",
@@ -750,7 +750,7 @@ z.addEventListener("install", () => {
 		let e = t.pathname.split("/").pop() || "";
 		ae(e) && console.warn(`[piper-gate] [Path Deviation] Detected request for Piper asset '${e}' at non-gateway path: ${t.pathname}. This request bypasses Service Worker integrity verification and OPFS caching. Please update the requester to use: /piper-gate/.../${e}`);
 	}
-	if (t.searchParams.has("bypass-sw") || t.origin !== z.location.origin || !t.pathname.startsWith("/piper-gate/")) return;
+	if (t.origin !== z.location.origin || !t.pathname.startsWith("/piper-gate/")) return;
 	let n = t.pathname.slice(12);
 	if (n) {
 		if (e.request.method === "DELETE") {
@@ -974,6 +974,14 @@ async function de(e) {
 		if (e === "voices/" || e === "voices") {
 			try {
 				await t.removeEntry("voices", { recursive: !0 }), console.log("[piper-gate] Voice cache cleared (recursive)");
+			} catch (e) {
+				if (!(e instanceof Error && (e.name === "NotFoundError" || e.message.toLowerCase().includes("not found")))) throw e;
+			}
+			return new Response(null, { status: 204 });
+		}
+		if (e === "infra/" || e === "infra") {
+			try {
+				await t.removeEntry("infra", { recursive: !0 }), console.log("[piper-gate] Infra asset cache cleared (recursive)");
 			} catch (e) {
 				if (!(e instanceof Error && (e.name === "NotFoundError" || e.message.toLowerCase().includes("not found")))) throw e;
 			}

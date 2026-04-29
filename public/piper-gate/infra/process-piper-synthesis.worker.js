@@ -87,7 +87,7 @@ async function h(e) {
 		c &&= (d("Callback disabled via surgical toggle"), null);
 		return;
 	}
-	let t = new URL("/piper-callback.js", self.location.href).href;
+	let t = new URL("./piper-callback.js", self.location.href).href;
 	d(`Loading sovereign callback: ${t}`);
 	try {
 		let e = await fetch(t);

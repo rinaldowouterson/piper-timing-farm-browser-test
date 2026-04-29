@@ -191,3 +191,25 @@ select, input {
 }
 .metadata-grid .value { color: var(--text); font-weight: 600; }
 .metadata-grid .tag { margin: 0; text-align: center; }
+
+/* Test Coverage Tags */
+.coverage-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+.cov-tag {
+  font-size: 0.55rem;
+  background: rgba(88, 166, 255, 0.1);
+  color: var(--accent);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  border: 1px solid rgba(88, 166, 255, 0.2);
+  white-space: nowrap;
+}
+.test-btn.passed .cov-tag {
+  background: rgba(63, 185, 80, 0.1);
+  color: var(--success);
+  border-color: rgba(63, 185, 80, 0.2);
+}

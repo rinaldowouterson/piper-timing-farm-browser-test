@@ -3,7 +3,10 @@ let activeSources: AudioBufferSourceNode[] = [];
 /**
  * Play raw audio buffer using Web Audio API.
  */
-export function playRawAudio(data: Float32Array, ctx: AudioContext, sampleRate: number = 22050) {
+export async function playRawAudio(data: Float32Array, ctx: AudioContext, sampleRate: number = 22050) {
+  if (ctx.state === 'suspended') {
+    await ctx.resume();
+  }
   const buffer = ctx.createBuffer(1, data.length, sampleRate);
   // Ensure the data is a plain Float32Array (not SharedArrayBuffer backed) for copyToChannel
   const channelData = new Float32Array(data);

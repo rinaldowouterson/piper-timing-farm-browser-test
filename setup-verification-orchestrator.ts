@@ -235,7 +235,7 @@ async function initProvider(options: {
         refreshBusyState();
       } else if (event.state === 'processing') {
         if (row) {
-          row.classList.add('active');
+          row.classList.replace('pending', 'active');
           const modelCell = row.querySelector('.model-cell')!;
           modelCell.innerHTML = `<span class="tag">SYNTHESIZING...</span>`;
         }
@@ -572,8 +572,16 @@ async function runScenario(scenario: TestScenario) {
       passedCountEl.textContent = passedCount.toString();
       LogHelpers.test.scenarioPass(logger!, scenario.name, duration, 0);
       
+      // If the scenario returned synthesis data, update the audit table
+      if (result.data && (result.data.audioData || result.data.length)) {
+        const rowId = `row-${scenario.id}`; // We should probably have a consistent ID scheme
+        const row = document.getElementById(rowId) || document.querySelector(`.audit-row[id*="${scenario.id}"]`);
+        const synthResult = result.data.audioData ? result.data : { audioData: result.data, metadata: {}, sampleRate: 22050 };
+        if (row) handleSynthesisResult(scenario.name, synthResult, row as HTMLElement);
+      }
+
       // Update Sidebar Coverage
-      resolveSidebarUpdate(scenario.name);
+      resolveSidebarUpdate(scenario.features);
     } else {
       failedCount++;
       failedCountEl.textContent = failedCount.toString();
@@ -825,7 +833,7 @@ testScenarioGrid.addEventListener('click', async (e) => {
   const btn = target.closest('.test-btn') as HTMLButtonElement;
   
   if (btn && btn.dataset.scenario) {
-    const scenario = TEST_SCENARIOS.find(s => s.name === btn.dataset.scenario);
+    const scenario = TEST_SCENARIOS.find(s => s.id === btn.dataset.scenario);
     if (scenario) {
       await runScenario(scenario);
     }
@@ -839,6 +847,25 @@ runAllBtn.onclick = runAllTests;
 // Initialize
 // ============================================
 
+function initTestGrid() {
+  TEST_SCENARIOS.forEach(scenario => {
+    const btn = testScenarioGrid.querySelector(`[data-scenario="${scenario.id}"]`);
+    if (btn) {
+      const tagsContainer = document.createElement('div');
+      tagsContainer.className = 'coverage-tags';
+      scenario.features.forEach(feature => {
+        const tag = document.createElement('span');
+        tag.className = 'cov-tag';
+        tag.textContent = feature;
+        tagsContainer.appendChild(tag);
+      });
+      btn.appendChild(tagsContainer);
+    }
+  });
+}
+
 initLogger();
+initTestGrid();
+pendingCountEl.textContent = pendingCount.toString();
 LogHelpers.test.scenarioStart(logger!, 'init', 'Integrated Load Verification Runner Initialized');
 setFarmState('idle');

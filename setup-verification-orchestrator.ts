@@ -11,6 +11,7 @@ import { AudioSynthesisResult, DownloadState } from 'piper-timing-farm-browser';
 import { createProcessLogger, ProcessLogger, LogHelpers } from './process-logging';
 import { createFifoVerifier, FifoVerifier } from './control-fifo-verifier';
 import { stressScenarios } from './src/scenarios/resolve-stress-scenarios';
+import { extendedScenarios } from './src/scenarios/setup-extended-scenarios';
 import { TestScenario } from './src/scenarios/types';
 import { DashboardState } from './types/ui-state';
 import { renderDashboard } from './src/utils/resolve-dashboard-updates';
@@ -34,6 +35,8 @@ const knobFlashFlood = document.getElementById('knobFlashFlood') as HTMLButtonEl
 const knobPivot = document.getElementById('knobPivot') as HTMLButtonElement;
 const toggleCallback = document.getElementById('toggleCallback') as HTMLInputElement;
 const btnCancelAll = document.getElementById('btnCancelAll') as HTMLButtonElement;
+const knobExtendedRegular = document.getElementById('knobExtendedRegular') as HTMLButtonElement;
+const knobExtendedStress = document.getElementById('knobExtendedStress') as HTMLButtonElement;
 const speakerIdInput = document.getElementById('speakerIdInput') as HTMLInputElement;
 const speedInput = document.getElementById('speedInput') as HTMLInputElement;
 const volumeInput = document.getElementById('volumeInput') as HTMLInputElement;
@@ -353,6 +356,7 @@ function createResultCard(text: string, requestId: string): HTMLElement {
     <td class="volume-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${volStr}x</td>
     <td class="sentence-cell" title="${escapeHtml(text)}">${escapedText}</td>
     <td class="status-cell" style="font-family: var(--font-mono); color: var(--text-dim);">-</td>
+    <td class="callback-cell" style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim);">-</td>
     <td>
       <div style="display: flex; gap: 4px; justify-content: center;">
         <button class="knob danger cancel-row-btn" data-request-id="${requestId}" style="padding: 0.2rem 0.5rem; font-size: 0.55rem;">CANCEL</button>
@@ -365,7 +369,7 @@ function createResultCard(text: string, requestId: string): HTMLElement {
   return row;
 }
 
-function markRowDone(row: HTMLElement, requestId: string, result?: AudioSynthesisResult) {
+function markRowDone(row: HTMLElement, requestId: string, result?: AudioSynthesisResult & { callbackResult?: any }) {
   state.totalDone++;
   syncUI();
 
@@ -375,6 +379,7 @@ function markRowDone(row: HTMLElement, requestId: string, result?: AudioSynthesi
   const modelCell = row.querySelector('.model-cell')!;
   const speakerCell = row.querySelector('.speaker-cell')!;
   const statusCell = row.querySelector('.status-cell')!;
+  const callbackCell = row.querySelector('.callback-cell')!;
   const playBtn = row.querySelector('.play-btn') as HTMLButtonElement;
   const cancelBtn = row.querySelector('.cancel-row-btn') as HTMLButtonElement;
 
@@ -384,6 +389,14 @@ function markRowDone(row: HTMLElement, requestId: string, result?: AudioSynthesi
   
   if (result) {
     statusCell.textContent = `${Math.round(result.durationMs)}ms`;
+    
+    if (result.callbackResult) {
+      callbackCell.textContent = result.callbackResult.bytes ? `${(result.callbackResult.bytes / 1024).toFixed(1)} KB` : 'DONE';
+      callbackCell.setAttribute('style', 'font-family: var(--font-mono); font-size: 0.65rem; color: var(--success); font-weight: 700;');
+    } else {
+      callbackCell.textContent = 'SKIP';
+    }
+
     updateRamMetric(result.audioData.byteLength);
     playBtn.disabled = false;
     playBtn.onclick = () => {
@@ -465,6 +478,17 @@ knobFlashFlood.onclick = () => {
   initLogger();
   logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: FLASH_FLOOD' } });
   runScenario(stressScenarios.find(s => s.id === 'burst-concurrency')!);
+};
+
+knobExtendedRegular.onclick = () => {
+  initLogger();
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'BEHEMOTH: REGULAR' } });
+  runScenario(extendedScenarios.find(s => s.id === 'extended-standard')!);
+};
+knobExtendedStress.onclick = () => {
+  initLogger();
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'BEHEMOTH: STRESS' } });
+  runScenario(extendedScenarios.find(s => s.id === 'extended-concurrency')!);
 };
 
 knobPivot.onclick = () => {
@@ -555,25 +579,49 @@ async function runScenario(scenario: TestScenario | undefined) {
 // Metrics Polling
 // ============================================
 
+// Tracks the active model ID seen on the previous polling tick.
+// Used to detect farm-initiated model changes vs user-initiated dropdown changes.
+let lastSeenActiveModelId: string | null = null;
+
 setInterval(() => {
   if (provider) {
     const m = provider.metrics;
     state.queueLength = m.queueLength;
     state.busyWorkers = m.busyWorkers;
     state.activeModelId = provider.getActiveModelId();
-    
+
     const downloads = provider.getDownloadState();
     renderDownloads(downloads);
 
     const isDownloading = Array.from(downloads.values()).some(s => s.status === 'downloading');
-    
+
+    // Detect a farm-initiated model change: the farm's active model changed
+    // between the previous tick and this one. This is the only condition under
+    // which the dropdown is updated programmatically. A user who manually
+    // changed the dropdown without pressing INIT/SWAP will see STALE, which
+    // is the correct signal that their selection is pending.
+    const farmChangedModel =
+      state.activeModelId !== null &&
+      state.activeModelId !== lastSeenActiveModelId;
+
     if (isDownloading) {
       state.promotionState = 'downloading';
+    } else if (farmChangedModel) {
+      // Farm settled on a new model (e.g. extended swap). Sync dropdown and
+      // clear any transient promotion state (hotswap/surgical) — the transition
+      // is complete by definition when the farm reports a new activeModelId.
+      modelSelect.value = state.activeModelId!;
+      updateSpeakerBounds();
+      state.promotionState = 'stable';
     } else if (state.activeModelId && state.activeModelId !== modelSelect.value) {
+      // Farm model is unchanged, but the dropdown differs. This is a pending
+      // user selection that has not been promoted yet.
       state.promotionState = 'stale';
     } else if (state.promotionState !== 'surgical' && state.promotionState !== 'hotswap') {
       state.promotionState = 'stable';
     }
+
+    lastSeenActiveModelId = state.activeModelId;
     syncUI();
   }
 }, 400);

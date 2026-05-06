@@ -73,8 +73,22 @@ export const stressScenarios: TestScenario[] = [
     description: "Simultaneous burst of 50 tasks.",
     features: ["provider.synthesize", "FIFO order sequencing"],
     execute: async (provider) => {
-      const texts = Array.from({ length: 50 }, (_, i) => `Flood task ${i}`);
-      const tasks = texts.map(text => provider.synthesize(text));
+      const texts = [
+        "The system is now under heavy load to verify concurrency limits.",
+        "Synthesizing high-priority audio streams across multiple worker instances.",
+        "Maintaining FIFO order stability while the queue transitions between models.",
+        "Atomic supersession ensures that legacy tasks are not orphaned during hotswaps.",
+        "Performance metrics indicate optimal throughput for parallel WASM execution.",
+        "Surgical updates allow lightweight configuration changes without worker restarts.",
+        "Integrity verification is enforced by the SHA-256 Service Worker gateway.",
+        "Piper Timing Farm orchestrates complex synthesis lifecycles in real-time.",
+        "Validating the resilience of the audio processing pipeline under extreme stress.",
+        "Each request follows a strict lifecycle from queuing to completion."
+      ];
+      // Cycle through the texts to create 50 tasks
+      const tasks = Array.from({ length: 50 }, (_, i) => 
+        provider.synthesize(texts[i % texts.length])
+      );
       try {
         await Promise.all(tasks);
         return { success: true, data: undefined, message: "High-concurrency burst completed." };

@@ -68,6 +68,7 @@
             <span class="knob-label">Model Selection</span>
             <select id="modelSelect" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: white; padding: 0.5rem; border-radius: 8px; font-family: var(--font-ui); font-size: 0.8rem;">
               <option value="en_US-bryce-medium">Bryce (English)</option>
+              <option value="en_US-ljspeech-high">LJSpeech (English)</option>
               <option value="uk_UA-ukrainian_tts-medium">Ukrainian (Multi-Speaker)</option>
               <option value="en_GB-cori-medium">Cori (British English)</option>
               <option value="en_US-libritts-high">LibriTTS (904 Speakers)</option>
@@ -83,7 +84,7 @@
           </div>
           <div style="flex: 1; display: flex; flex-direction: column; gap: 0.2rem;">
             <span class="knob-label">Volume</span>
-            <input type="number" id="volumeInput" value="1.0" min="0.1" max="5.0" step="0.1" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: white; padding: 0.5rem; border-radius: 8px; font-family: var(--font-ui); font-size: 0.8rem; width: 100%; outline: none;">
+            <input type="number" id="volumeInput" value="1.0" min="0.0" max="5.0" step="0.1" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: white; padding: 0.5rem; border-radius: 8px; font-family: var(--font-ui); font-size: 0.8rem; width: 100%; outline: none;">
           </div>
           <button id="btnInit" class="knob primary" style="padding: 0.6rem 1.5rem; height: auto;">
             <span class="knob-value">INIT / SWAP</span>
@@ -114,6 +115,7 @@
                 <th>Vol</th>
                 <th>Sentence</th>
                 <th>Status</th>
+                <th>Callback</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -158,6 +160,20 @@
             <span class="knob-label">LIVE UPDATE</span>
             <span class="knob-value">PIVOT</span>
           </button>
+        </div>
+
+        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-subtle);">
+          <span class="knob-label" style="display: block; margin-bottom: 0.5rem; color: var(--accent);">BEHEMOTH</span>
+          <div class="knob-grid">
+            <button id="knobExtendedRegular" class="knob" style="border-color: var(--accent);">
+              <span class="knob-label">SEQUENTIAL</span>
+              <span class="knob-value">REGULAR</span>
+            </button>
+            <button id="knobExtendedStress" class="knob danger" style="border-color: var(--danger);">
+              <span class="knob-label">CONCURRENT</span>
+              <span class="knob-value">STRESS</span>
+            </button>
+          </div>
         </div>
 
         <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-subtle);">

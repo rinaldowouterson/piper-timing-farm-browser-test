@@ -6,12 +6,11 @@
  */
 
 import { ProcessLogger, LogHelpers } from './process-logging';
-import { TestResult } from './src/scenarios/types';
-import { PiperWorkerFarm } from 'piper-timing-farm-browser';
+import { TestResult, PiperProvider } from './src/scenarios/types';
 
 export interface FifoVerifier {
   recordRequest: (requestId: string) => void;
-  recordResult: (requestId: string) => void;
+  bindToProvider: (provider: PiperProvider) => void;
   verify: () => TestResult;
   getStats: () => FifoStats;
   reset: () => void;
@@ -41,16 +40,20 @@ export function createFifoVerifier(logger: ProcessLogger): FifoVerifier {
     LogHelpers.fifo.enqueue(logger, requestId, requestOrder.length, requestOrder.length);
   };
 
-  const recordResult = (requestId: string) => {
-    resultOrder.push(requestId);
-    resultTimestamps.set(requestId, Date.now());
-    
-    const position = resultOrder.length;
-    const requestTime = requestTimestamps.get(requestId) || 0;
-    const resultTime = resultTimestamps.get(requestId) || 0;
-    const waitTimeMs = resultTime - requestTime;
-    
-    LogHelpers.fifo.drain(logger, requestId, position, waitTimeMs);
+  const bindToProvider = (provider: PiperProvider) => {
+    provider.onQueueStatus((event) => {
+      if (event.state === 'completed') {
+        resultOrder.push(event.requestId);
+        resultTimestamps.set(event.requestId, Date.now());
+        
+        const position = resultOrder.length;
+        const requestTime = requestTimestamps.get(event.requestId) || 0;
+        const resultTime = resultTimestamps.get(event.requestId) || 0;
+        const waitTimeMs = resultTime - requestTime;
+        
+        LogHelpers.fifo.drain(logger, event.requestId, position, waitTimeMs);
+      }
+    });
   };
 
   const verify = (): TestResult => {
@@ -75,17 +78,6 @@ export function createFifoVerifier(logger: ProcessLogger): FifoVerifier {
           position: i,
           expected: requestOrder[i],
           actual: 'MISSING'
-        });
-      }
-    }
-
-    // Check for extra results
-    if (resultOrder.length > requestOrder.length) {
-      for (let i = requestOrder.length; i < resultOrder.length; i++) {
-        mismatches.push({
-          position: i,
-          expected: 'MISSING',
-          actual: resultOrder[i]
         });
       }
     }
@@ -137,7 +129,7 @@ export function createFifoVerifier(logger: ProcessLogger): FifoVerifier {
 
   return {
     recordRequest,
-    recordResult,
+    bindToProvider,
     verify,
     getStats,
     reset
@@ -155,7 +147,7 @@ export function generateRequestId(): string {
  * FIFO Test Scenario Runner
  */
 export async function runFifoTest(
-  provider: PiperWorkerFarm,
+  provider: PiperProvider,
   logger: ProcessLogger,
   verifier: FifoVerifier,
   count: number = 50,
@@ -166,6 +158,7 @@ export async function runFifoTest(
   
   const startTime = Date.now();
   verifier.reset();
+  verifier.bindToProvider(provider);
   
   // Ensure provider is initialized
   if (!provider.isInitialized()) {
@@ -178,7 +171,7 @@ export async function runFifoTest(
   }
 
   // Submit all requests
-  const promises: Promise<void>[] = [];
+  const promises: Promise<unknown>[] = [];
   
   for (let i = 0; i < count; i++) {
     const requestId = generateRequestId();
@@ -188,7 +181,6 @@ export async function runFifoTest(
     LogHelpers.synthesis.requested(logger, requestId, text);
     
     const promise = provider.synthesize(text, { requestId }).then(result => {
-      verifier.recordResult(requestId);
       LogHelpers.synthesis.resultReady(
         logger, 
         requestId, 

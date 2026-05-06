@@ -73,9 +73,10 @@ export const integrityScenarios: TestScenario[] = [
     execute: async (provider) => {
       // Trigger a download by switching to a new model
       const targetModel = "en_GB-cori-medium";
-      provider.init({ modelId: targetModel });
+      const initPromise = provider.init({ modelId: targetModel });
       await new Promise(r => setTimeout(r, 100)); // Wait for it to start
       await provider.cancelDownload(targetModel);
+      try { await initPromise; } catch (e) {} // Consume the init promise
       return { success: true, data: undefined, message: "Download cancelled successfully." };
     }
   },
@@ -135,11 +136,12 @@ export const integrityScenarios: TestScenario[] = [
       );
 
       // 3. Trigger handover to a single-speaker model (Bryce)
-      // Note: We don't await init here, we want it to happen in background
-      provider.init({ modelId: 'en_US-bryce-medium' });
+      // Note: We don't await init immediately, but we must handle its promise
+      const initPromise = provider.init({ modelId: 'en_US-bryce-medium' });
 
       // 4. Wait for all
       const results = await Promise.all(tasks);
+      await initPromise;
       
       if (results.length === 5) {
         return { 

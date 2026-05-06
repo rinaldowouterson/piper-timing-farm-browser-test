@@ -1,6 +1,6 @@
 import { PiperWorkerFarm, SynthesizeOptions } from "piper-timing-farm-browser";
 
-export type TestResult<T = any> = 
+export type TestResult<T = unknown> = 
   | { success: true; data: T; message?: string }
   | { success: false; error: Error | string };
 

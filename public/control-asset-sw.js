@@ -620,7 +620,7 @@ var B = "infra", V = "voices", H = {
 	"piper_phonemize.data": "29f1025eb23a5b5c192cd14a6efbce4509402ff265405072ee6f7d1a09b78f8c",
 	"piper_phonemize.js": "fef0c2fc442d24fdef5c7c7cc37d5da2314407640fe11ab1bfe347c723dff19b",
 	"piper_phonemize.wasm": "b777cd107a91d2bcc6a1ea46f2c26a662a7407394fe84589198aeaa83dd7a9d6",
-	"process-piper-synthesis.worker.js": "a011f34f2186cad5adacc84c57280ce21f550305f437216b80cb8d5431434bd7",
+	"process-piper-synthesis.worker.js": "3003b45c74ab87062f444182c401acbbb5109272c93a003cdfe045c5a66d8cc4",
 	"piper-callback.js": "c769d1f2b9d5ee7f0cb97858d68a21c2e1fc86312981d71f098560060e13f81b"
 }, U = {
 	"ort-wasm-simd-threaded.wasm": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.wasm",

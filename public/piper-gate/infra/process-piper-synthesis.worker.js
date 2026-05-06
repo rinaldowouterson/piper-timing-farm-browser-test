@@ -84,7 +84,10 @@ async function m(n) {
 }
 async function h(e) {
 	if (!e) {
-		c &&= (d("Callback disabled via surgical toggle"), null);
+		c &&= (d("Callback disabled via surgical toggle"), null), S({
+			type: "callback-off",
+			instanceId: i
+		});
 		return;
 	}
 	let t = new URL("./piper-callback.js", self.location.href).href;
@@ -100,7 +103,7 @@ async function h(e) {
 			t
 )).onSynthesisComplete, typeof c != "function") throw Error(`Export 'onSynthesisComplete' is not a function in ${t}`);
 		d("Sovereign callback loaded successfully"), S({
-			type: "callback-loaded",
+			type: "callback-on",
 			instanceId: i
 		});
 	} catch (e) {

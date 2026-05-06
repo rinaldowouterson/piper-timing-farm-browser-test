@@ -95,7 +95,7 @@ export function createProcessLogger(container: HTMLElement): ProcessLogger {
     detailTable.className = 'log-detail-table';
 
     // Add all data fields
-    Object.entries(entry.data).forEach(([key, value]) => {
+    Object.entries(entry.data || {}).forEach(([key, value]) => {
       const row = document.createElement('tr');
       const keyCell = document.createElement('td');
       keyCell.className = 'log-detail-key';

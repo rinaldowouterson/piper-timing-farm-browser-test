@@ -1,30 +1,19 @@
 /**
  * Integrated Load Verification Runner for Piper Timing Farm
  * 
- * Comprehensive verification orchestrator with:
- * - Context-aware chronological workflow (Init → Synth → Cancel → Terminate)
- * - Granular cancellation (AbortSignal, cancelSynthesis, cancelAllSynthesis)
- * - Self-healing worker replacement verification
- * - Detailed process logging
+ * Unified Verification Control Panel Orchestrator
  */
 
-import { createPiperProvider, clearModelCache, clearInfraCache } from 'piper-timing-farm-browser';
+import { createPiperProvider } from 'piper-timing-farm-browser';
 import { playRawAudio, stopAudio } from './process-audio-playback';
 import { createAudioSequencer } from './control-audio-sequencer';
-import { AudioSynthesisResult } from 'piper-timing-farm-browser';
-import { createProcessLogger, ProcessLogger, LogHelpers, LogCategory } from './process-logging';
+import { AudioSynthesisResult, DownloadState } from 'piper-timing-farm-browser';
+import { createProcessLogger, ProcessLogger, LogHelpers } from './process-logging';
 import { createFifoVerifier, FifoVerifier } from './control-fifo-verifier';
-import { featureScenarios } from './src/scenarios/resolve-feature-scenarios';
-import { integrityScenarios } from './src/scenarios/control-integrity-scenarios';
 import { stressScenarios } from './src/scenarios/resolve-stress-scenarios';
 import { TestScenario } from './src/scenarios/types';
-import { resolveSidebarUpdate, resetSidebarCoverage } from './src/utils/resolve-sidebar-updates';
-
-const TEST_SCENARIOS: TestScenario[] = [
-  ...featureScenarios,
-  ...integrityScenarios,
-  ...stressScenarios
-];
+import { DashboardState } from './types/ui-state';
+import { renderDashboard } from './src/utils/resolve-dashboard-updates';
 
 // ============================================
 // UI Elements
@@ -33,126 +22,112 @@ const TEST_SCENARIOS: TestScenario[] = [
 const btnInit = document.getElementById('btnInit') as HTMLButtonElement;
 const btnStop = document.getElementById('btnStop') as HTMLButtonElement;
 const modelSelect = document.getElementById('modelSelect') as HTMLSelectElement;
-const resultList = document.getElementById('resultList')!;
-const logEl = document.getElementById('log')!;
+const auditBody = document.getElementById('auditBody')!;
+const logStream = document.getElementById('logStream')!;
+const apiCoverage = document.getElementById('apiCoverage')!;
+const downloadMonitor = document.getElementById('downloadMonitor')!;
 
-const metricQueue = document.getElementById('metricQueue')!;
-const metricBusy = document.getElementById('metricBusy')!;
-const metricActiveModel = document.getElementById('metricActiveModel')!;
-const downloadList = document.getElementById('download-list')!;
-const speakerIdSelect = document.getElementById('speakerIdSelect') as HTMLInputElement;
-const totalQueuedEl = document.getElementById('totalQueued')!;
-const totalDoneEl = document.getElementById('totalDone')!;
-const totalCancelledEl = document.getElementById('totalCancelled')!;
-const activePoolIdEl = document.getElementById('active-pool-id')!;
-const promotionStateEl = document.getElementById('promotion-state')!;
-
-const btnClearCache = document.getElementById('clear-cache-btn') as HTMLButtonElement;
-const btnClearInfra = document.getElementById('clear-infra-btn') as HTMLButtonElement;
-const statusEl = document.getElementById('status')!;
-
-// Manual Synthesis
-const manualText = document.getElementById('manualText') as HTMLTextAreaElement;
-const btnManualSynth = document.getElementById('btnManualSynth') as HTMLButtonElement;
-const audioRamMetric = document.getElementById('audioRamMetric')!;
-const emptyTableMsg = document.getElementById('empty-table-msg')!;
-
-// Synth Options
-const speedSlider = document.getElementById('speedSlider') as HTMLInputElement;
-const volumeSlider = document.getElementById('volumeSlider') as HTMLInputElement;
-const speedValue = document.getElementById('speedValue')!;
-const volumeValue = document.getElementById('volumeValue')!;
-
-// Test Scenario
-const passedCountEl = document.getElementById('passedCount')!;
-const failedCountEl = document.getElementById('failedCount')!;
-const pendingCountEl = document.getElementById('pendingCount')!;
-const exportLogsBtn = document.getElementById('exportLogsBtn') as HTMLButtonElement;
-const clearLogsBtn = document.getElementById('clearLogsBtn') as HTMLButtonElement;
-const logFilterBar = document.getElementById('logFilterBar')!;
-const testScenarioGrid = document.getElementById('testScenarioGrid')!;
-const runAllBtn = document.getElementById('runAllBtn') as HTMLButtonElement;
-
-// Cancel Zone
+// Knobs
+const knobMemory = document.getElementById('knobMemory') as HTMLButtonElement;
+const knobHotswap = document.getElementById('knobHotswap') as HTMLButtonElement;
+const knobFlashFlood = document.getElementById('knobFlashFlood') as HTMLButtonElement;
+const knobPivot = document.getElementById('knobPivot') as HTMLButtonElement;
+const toggleCallback = document.getElementById('toggleCallback') as HTMLInputElement;
 const btnCancelAll = document.getElementById('btnCancelAll') as HTMLButtonElement;
-const cancelZone = document.getElementById('cancelZone')!;
-const cancelIdleMsg = document.getElementById('cancelIdleMsg')!;
 
-// State Indicator
-const stateIndicator = document.getElementById('stateIndicator')!;
-const stateLabel = document.getElementById('stateLabel')!;
+const btnClearLogs = document.getElementById('btnClearLogs') as HTMLButtonElement;
+const btnExportLogs = document.getElementById('btnExportLogs') as HTMLButtonElement;
 
 // ============================================
 // State
 // ============================================
 
-let totalQueued = 0;
-let totalDone = 0;
-let totalCancelled = 0;
-let passedCount = 0;
-let failedCount = 0;
-let pendingCount = TEST_SCENARIOS.length;
-let totalAudioBytes = 0;
+const state: DashboardState = {
+  swStatus: 'inactive',
+  farmStatus: 'idle',
+  activeModelId: null,
+  promotionState: 'stable',
+  queueLength: 0,
+  busyWorkers: 0,
+  totalAudioMB: 0,
+  totalQueued: 0,
+  totalDone: 0,
+  totalCancelled: 0
+};
 
+const apiUsage = new Set<string>();
+const API_METHODS = [
+  { id: 'provider.init', label: 'provider.init' },
+  { id: 'provider.synthesize', label: 'provider.synthesize' },
+  { id: 'provider.cancelAllSynthesis', label: 'provider.cancelAll' },
+  { id: 'provider.updatePendingOptions', label: 'provider.updateOptions' },
+  { id: 'createPiperProvider', label: 'createPiperProvider' }
+];
+
+let totalAudioBytes = 0;
 let provider: ReturnType<typeof createPiperProvider> | null = null;
 let audioCtx: AudioContext | null = null;
 let sequencer: ReturnType<typeof createAudioSequencer> | null = null;
-let logger: ProcessLogger | null = null;
+let logger: ProcessLogger | undefined;
 let verifier: FifoVerifier | null = null;
 
-/**
- * Tracks active (in-flight) UI request IDs
- */
 const activeUIRows = new Set<string>();
+const resultRegistry = new Map<string, Promise<AudioSynthesisResult>>();
 
+function syncUI() {
+  renderDashboard(state);
+  renderApiCoverage();
+}
+
+function trackApiUsage(methodId: string) {
+  apiUsage.add(methodId);
+  renderApiCoverage();
+}
+
+function renderApiCoverage() {
+  apiCoverage.innerHTML = '';
+  API_METHODS.forEach(method => {
+    const isHit = apiUsage.has(method.id);
+    const item = document.createElement('div');
+    item.className = `coverage-item ${isHit ? 'hit' : ''}`;
+    item.innerHTML = `<span class="coverage-dot"></span><span>${method.label}</span>`;
+    apiCoverage.appendChild(item);
+  });
+}
 
 // ============================================
 // UI State Machine
 // ============================================
 
-type FarmState = 'idle' | 'ready' | 'busy' | 'terminated';
-// Audit Result Mapping
 const RESULT_MAP = new WeakMap<AudioSynthesisResult, HTMLElement>();
 
-function setFarmState(state: FarmState) {
-  stateIndicator.className = `state-indicator ${state}`;
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
-  switch (state) {
+function setFarmState(farmStatus: DashboardState['farmStatus']) {
+  state.farmStatus = farmStatus;
+  
+  switch (farmStatus) {
     case 'idle':
-      stateLabel.textContent = 'IDLE — Not Initialized';
-      btnManualSynth.disabled = true;
       btnStop.disabled = true;
-      btnClearCache.disabled = false;
       btnCancelAll.disabled = true;
       break;
     case 'ready':
-      stateLabel.textContent = `READY — ${provider?.getActiveModelId() || 'Unknown Model'}`;
-      btnManualSynth.disabled = false;
       btnStop.disabled = false;
-      btnClearCache.disabled = false;
-      btnClearInfra.disabled = false;
+      btnCancelAll.disabled = false;
       break;
     case 'busy':
-      btnInit.disabled = true;
-      btnManualSynth.disabled = false;
+      btnInit.disabled = false; // Allow swaps even when busy
       btnStop.disabled = false;
-      btnClearCache.disabled = true;
-      btnClearInfra.disabled = true;
-      break;
-    case 'terminated':
-      btnInit.disabled = false;
-      btnManualSynth.disabled = true;
-      btnStop.disabled = true;
-      btnClearCache.disabled = false;
-      btnClearInfra.disabled = false;
-      btnCancelAll.disabled = true;
       break;
   }
-
-  // Cancel zone visibility
-  const hasTasks = activeUIRows.size > 0;
-  cancelZone.style.display = hasTasks ? 'block' : 'none';
-  cancelIdleMsg.style.display = hasTasks ? 'none' : 'block';
+  syncUI();
 }
 
 function refreshBusyState() {
@@ -165,17 +140,52 @@ function refreshBusyState() {
 }
 
 // ============================================
-// Logging
+// Logging & Observability
 // ============================================
 
 function initLogger() {
   if (!logger) {
-    logger = createProcessLogger(logEl);
+    logger = createProcessLogger(logStream);
     logger.setMaxEntries(2000);
   }
   if (!verifier) {
     verifier = createFifoVerifier(logger);
   }
+}
+
+// ============================================
+// Download Monitor Rendering
+// ============================================
+
+function renderDownloads(downloads: Map<string, DownloadState>) {
+  if (downloads.size === 0) {
+    downloadMonitor.innerHTML = `<div class="telemetry-label" style="text-align: center; padding: 2rem;">No active downloads.</div>`;
+    return;
+  }
+
+  downloadMonitor.innerHTML = '';
+  downloads.forEach(dl => {
+    const card = document.createElement('div');
+    card.className = 'download-card';
+    
+    const isDownloading = dl.status === 'downloading';
+    const progressPercent = (dl.progress * 100).toFixed(1);
+    
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.7rem; font-weight: 700; color: var(--accent);">${dl.modelId}</span>
+        ${isDownloading ? `<button class="knob danger cancel-dl-btn" data-model-id="${dl.modelId}" style="padding: 0.2rem 0.5rem; font-size: 0.55rem;">CANCEL</button>` : ''}
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-dim);">
+        <span>${dl.status.toUpperCase()}</span>
+        <span>${progressPercent}%</span>
+      </div>
+    `;
+    downloadMonitor.appendChild(card);
+  });
 }
 
 // ============================================
@@ -187,19 +197,11 @@ async function initProvider(options: {
   useCallback?: boolean;
 } = {}) {
   initLogger();
+  trackApiUsage('createPiperProvider');
   
   if (!audioCtx) audioCtx = new AudioContext();
   if (!sequencer) {
     sequencer = createAudioSequencer(audioCtx);
-    sequencer.onPlay = (result) => {
-      document.querySelectorAll('.result-card.now-playing').forEach(el => el.classList.remove('now-playing'));
-      const cards = document.querySelectorAll('.audit-row');
-      const target = Array.from(cards).find(c => RESULT_MAP.get(result as any) === c);
-      if (target) {
-        target.classList.add('now-playing');
-        target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    };
   }
   
   const modelId = options.modelId || modelSelect.value;
@@ -208,239 +210,202 @@ async function initProvider(options: {
     provider = createPiperProvider();
     LogHelpers.lifecycle.providerCreated(logger!);
 
-    // Wire up worker-thread logging bridge
     provider.onLog((log) => {
+      // Detection of Path A vs Path B for Dashboard feedback
+      if (log.message.includes('Path A (Surgical)')) {
+        state.promotionState = 'surgical';
+        syncUI();
+      } else if (log.message.includes('Path B (Hotswap)')) {
+        state.promotionState = 'hotswap';
+        syncUI();
+      }
+
       const levelMap: Record<string, any> = {
         'info': 'INFO',
         'warn': 'WARNING',
         'error': 'ERROR',
         'debug': 'DEBUG'
       };
-      logger!.log({
+      logger?.log({
         category: 'WORKER',
         level: levelMap[log.level] || 'INFO',
-        event: 'WORKER_INTERNAL_LOG',
+        event: 'LOG',
         workerId: log.workerId,
         data: { message: log.message }
       });
     });
 
-    // Bind the global observability event subscriber
-    provider.onQueueStatus(event => {
+    // Monkey-patch synthesize to ensure all calls (even from scenarios) are tracked in the registry
+    const originalSynthesize = provider.synthesize.bind(provider);
+    provider.synthesize = (text, options) => {
+      const requestId = options?.requestId || `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const p = originalSynthesize(text, { ...options, requestId });
+      resultRegistry.set(requestId, p);
+      return p;
+    };
+
+    provider.onQueueStatus(async (event) => {
       let row = document.getElementById(`row-${event.requestId}`);
       
       if (event.state === 'queued') {
         if (!row) row = createResultCard(event.text, event.requestId);
         activeUIRows.add(event.requestId);
-        refreshBusyState();
       } else if (event.state === 'processing') {
         if (row) {
           row.classList.replace('pending', 'active');
           const modelCell = row.querySelector('.model-cell')!;
-          modelCell.innerHTML = `<span class="tag">SYNTHESIZING...</span>`;
+          modelCell.innerHTML = `<span class="status-tag busy">SYNTHESIZING</span>`;
         }
       } else if (event.state === 'completed') {
         activeUIRows.delete(event.requestId);
         if (row) {
-          row.classList.replace('active', 'done');
-          const modelCell = row.querySelector('.model-cell');
-          if (modelCell) modelCell.innerHTML = `<span class="tag ${event.modelId?.includes('uk') ? 'uk' : 'en'}">${event.modelId || 'DONE'}</span>`;
+          try {
+            const resultPromise = resultRegistry.get(event.requestId);
+            const result = resultPromise ? await resultPromise : undefined;
+            markRowDone(row, event.requestId, result);
+          } catch (err) {
+            markRowError(row, event.requestId, "Result resolution failed");
+          }
         }
-        refreshBusyState();
       } else if (event.state === 'cancelled' || event.state === 'error') {
         activeUIRows.delete(event.requestId);
         if (row) {
           if (event.state === 'cancelled') markRowCancelled(row, event.requestId);
           else if (event.state === 'error') markRowError(row, event.requestId, event.error);
         }
-        refreshBusyState();
       }
+      refreshBusyState();
     });
   }
   
   LogHelpers.lifecycle.initRequested(logger!, modelId, 2);
-  btnInit.disabled = true;
-  statusEl.innerText = `Initializing ${modelId}...`;
+  trackApiUsage('provider.init');
   
   try {
     await provider.init({
       modelId,
       cpuInstances: 2,
-      useCallback: options.useCallback ?? false,
-      onProgress: (state) => {
-        LogHelpers.download.progress(logger!, state.modelId, state.progress, state.bytesDownloaded, state.bytesTotal);
+      useCallback: options.useCallback ?? toggleCallback.checked,
+      onProgress: (_state) => {
+        // Handled by the metrics poller which reads getDownloadState()
       }
     });
     LogHelpers.lifecycle.promotionComplete(logger!, modelId, 2);
-
-    const swStatusIndicator = document.getElementById('swStatusIndicator')!;
-    const swStateLabel = document.getElementById('swStateLabel')!;
-    
-    if (navigator.serviceWorker.controller) {
-      swStatusIndicator.className = 'state-indicator ready';
-      swStateLabel.innerText = 'ACTIVE (Intercepting /piper-gate/*)';
-      logger!.log({ category: 'LIFECYCLE', level: 'SUCCESS', event: 'SW_STATUS', data: { status: 'Active' } });
-    } else {
-      swStatusIndicator.className = 'state-indicator busy';
-      swStateLabel.innerText = 'INACTIVE (Initial load/Reload needed)';
-      logger!.log({ category: 'LIFECYCLE', level: 'WARNING', event: 'SW_STATUS', data: { status: 'Inactive' } });
-    }
-
-    statusEl.innerText = `Ready: ${modelId}`;
+    state.activeModelId = modelId;
+    state.promotionState = 'stable';
+    state.swStatus = navigator.serviceWorker.controller ? 'active' : 'error';
     setFarmState('ready');
   } catch (err) {
-    LogHelpers.test.scenarioFail(logger!, 'init', String(err), 0);
-    statusEl.innerText = "Error: " + (err instanceof Error ? err.message : String(err));
-  } finally {
-    btnInit.disabled = false;
+    logger?.log({ category: 'LIFECYCLE', level: 'ERROR', event: 'INIT_ERROR', data: { error: String(err) } });
   }
 }
 
 // ============================================
-// Synthesis
+// Synthesis Logic
 // ============================================
 
 function updateRamMetric(addedBytes: number) {
   totalAudioBytes += addedBytes;
-  const mb = totalAudioBytes / (1024 * 1024);
-  audioRamMetric.textContent = `${mb.toFixed(2)} MB`;
+  state.totalAudioMB = totalAudioBytes / (1024 * 1024);
+  syncUI();
 }
 
 function createResultCard(text: string, requestId: string): HTMLElement {
-  totalQueued++;
-  totalQueuedEl.textContent = totalQueued.toString();
+  state.totalQueued++;
+  syncUI();
   
-  if (emptyTableMsg) emptyTableMsg.style.display = 'none';
-
   const row = document.createElement('tr');
   row.className = 'audit-row pending';
   row.id = `row-${requestId}`;
   
-  const displayText = text.length > 60 ? text.substring(0, 57) + '...' : text;
+  const displayText = text.length > 50 ? text.substring(0, 47) + '...' : text;
+  const escapedText = escapeHtml(displayText);
   const shortId = requestId.split('-').pop();
   
   row.innerHTML = `
-    <td style="font-family: monospace; color: #8b949e;">${shortId}</td>
-    <td class="model-cell"><span class="tag">QUEUED</span></td>
-    <td class="sentence-cell" title="${text}">${displayText}</td>
-    <td class="duration-cell">-</td>
-    <td class="ram-cell">-</td>
+    <td style="font-family: var(--font-mono); color: var(--text-dim); font-size: 0.7rem;">${shortId}</td>
+    <td class="model-cell"><span class="status-tag queued">QUEUED</span></td>
+    <td class="sentence-cell" title="${escapeHtml(text)}">${escapedText}</td>
+    <td class="status-cell" style="font-family: var(--font-mono); color: var(--text-dim);">-</td>
     <td>
       <div style="display: flex; gap: 4px; justify-content: center;">
-        <button class="cancel-row-btn" data-request-id="${requestId}" title="Cancel this synthesis (kills worker)">
-          ✕
-        </button>
-        <button class="play-btn" disabled>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-          PLAY
-        </button>
+        <button class="knob danger cancel-row-btn" data-request-id="${requestId}" style="padding: 0.2rem 0.5rem; font-size: 0.55rem;">CANCEL</button>
+        <button class="knob success play-btn" disabled style="padding: 0.2rem 0.5rem; font-size: 0.55rem;">PLAY</button>
       </div>
     </td>
   `;
   
-  resultList.prepend(row);
+  auditBody.prepend(row);
   return row;
 }
 
-function handleSynthesisResult(_text: string, result: AudioSynthesisResult, row: HTMLElement) {
-  totalDone++;
-  totalDoneEl.textContent = totalDone.toString();
+function markRowDone(row: HTMLElement, requestId: string, result?: AudioSynthesisResult) {
+  state.totalDone++;
+  syncUI();
 
-  row.classList.replace('pending', 'done');
-  row.classList.remove('active');
+  row.classList.remove('pending', 'active');
+  row.classList.add('done');
   
   const modelCell = row.querySelector('.model-cell')!;
-  const durationCell = row.querySelector('.duration-cell')!;
-  const ramCell = row.querySelector('.ram-cell')!;
+  const statusCell = row.querySelector('.status-cell')!;
   const playBtn = row.querySelector('.play-btn') as HTMLButtonElement;
   const cancelBtn = row.querySelector('.cancel-row-btn') as HTMLButtonElement;
 
-  const modelId = result.metadata.modelId || 'unknown';
-  modelCell.innerHTML = '';
-  const tag = document.createElement('span');
-  tag.className = `tag ${modelId.includes('uk') ? 'uk' : 'en'}`;
-  tag.textContent = modelId;
-  modelCell.appendChild(tag);
+  const modelId = result?.metadata.modelId || state.activeModelId || 'unknown';
+  modelCell.innerHTML = `<span class="status-tag done">${modelId}</span>`;
   
-  durationCell.textContent = `${Math.round(result.durationMs)}ms`;
-  
-  const bytes = result.audioData.byteLength;
-  ramCell.textContent = `${(bytes / 1024).toFixed(1)} KB`;
-  updateRamMetric(bytes);
+  if (result) {
+    statusCell.textContent = `${Math.round(result.durationMs)}ms`;
+    updateRamMetric(result.audioData.byteLength);
+    playBtn.disabled = false;
+    playBtn.onclick = () => {
+      stopAudio();
+      playRawAudio(result.audioData, audioCtx!);
+    };
+    RESULT_MAP.set(result, row);
+  } else {
+    statusCell.textContent = "DONE";
+  }
 
-  // Enable play, disable cancel (already done)
-  playBtn.disabled = false;
-  playBtn.onclick = () => {
-    stopAudio();
-    playRawAudio(result.audioData, audioCtx!);
-  };
-  if (cancelBtn) cancelBtn.disabled = true;
-  
-  RESULT_MAP.set(result, row);
+  if (cancelBtn) cancelBtn.style.display = 'none';
 }
 
 function markRowError(row: HTMLElement, _requestId: string, errorMsg?: string) {
   row.classList.remove('pending', 'active');
   row.classList.add('error');
-  row.style.borderColor = 'var(--danger)';
-
   const modelCell = row.querySelector('.model-cell')!;
-  modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">FAILED</span>`;
-
-  const durationCell = row.querySelector('.duration-cell')!;
-  durationCell.textContent = 'ERROR';
-  
+  modelCell.innerHTML = `<span class="status-tag danger">ERROR</span>`;
   if (errorMsg) {
     const sentenceCell = row.querySelector('.sentence-cell')!;
-    sentenceCell.setAttribute('title', errorMsg);
-    sentenceCell.innerHTML += `<div style="color: var(--danger); font-size: 0.7rem; margin-top: 4px;">${errorMsg}</div>`;
+    sentenceCell.innerHTML += `<div style="color: var(--danger); font-size: 0.6rem; margin-top: 4px; font-family: var(--font-mono);">${errorMsg}</div>`;
   }
 }
 
 function markRowCancelled(row: HTMLElement, _requestId: string) {
-  totalCancelled++;
-  totalCancelledEl.textContent = totalCancelled.toString();
-
+  state.totalCancelled++;
+  syncUI();
   row.classList.remove('pending', 'active');
   row.classList.add('cancelled');
-
   const modelCell = row.querySelector('.model-cell')!;
-  modelCell.innerHTML = `<span class="tag" style="background: var(--danger);">CANCELLED</span>`;
-
+  modelCell.innerHTML = `<span class="status-tag danger">CANCELLED</span>`;
   const cancelBtn = row.querySelector('.cancel-row-btn') as HTMLButtonElement;
   if (cancelBtn) cancelBtn.disabled = true;
-
-  const durationCell = row.querySelector('.duration-cell')!;
-  durationCell.textContent = '—';
 }
 
 async function queueSynthesis(text: string, options: { speakerId?: number; speed?: number; volume?: number; silent?: boolean } = {}) {
   if (!provider || !audioCtx || !logger) return;
+  trackApiUsage('provider.synthesize');
   
-  const speakerId = options.speakerId ?? (parseInt(speakerIdSelect.value) || 0);
-  const speed = options.speed ?? (parseFloat(speedSlider.value) || 1.0);
-  const volume = options.volume ?? (parseFloat(volumeSlider.value) || 1.0);
-  
-  // Let the reactive events create the card when 'queued' comes!
   const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  LogHelpers.synthesis.requested(logger!, requestId, text, speakerId, speed, volume);
+  logger.log({ category: 'SYNTHESIS', level: 'INFO', event: 'REQUEST', requestId, data: { text } });
 
   try {
     const result = await provider.synthesize(text, { 
-      speakerId, 
-      speed, 
-      volume,
+      speakerId: options.speakerId, 
+      speed: options.speed, 
+      volume: options.volume,
       requestId
     });
-    
-    const row = document.getElementById(`row-${requestId}`);
-    if (row && result) handleSynthesisResult(text, result as AudioSynthesisResult, row);
-
-    
-    if (result.metadata.phonemes) {
-      LogHelpers.metadata.phonemes(logger!, requestId, result.metadata.phonemes.length, result.metadata.phonemes);
-    }
-    LogHelpers.metadata.speakerId(logger!, requestId, speakerId, result.metadata.speakerId || 0);
     
     if (!options.silent) {
        playRawAudio(result.audioData, audioCtx);
@@ -448,424 +413,152 @@ async function queueSynthesis(text: string, options: { speakerId?: number; speed
     
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
-      logger!.log({ category: 'SYNTHESIS' as LogCategory, level: 'INFO', event: 'SYNTH_CANCELLED', requestId, data: {
-        reason: 'Provider cancelSynthesis'
-      }});
+      logger.log({ category: 'SYNTHESIS', level: 'INFO', event: 'CANCEL', requestId, data: {} });
     } else {
-      const row = document.getElementById(`row-${requestId}`);
-      if (row) {
-        row.style.borderColor = 'var(--danger)';
-        const modelCell = row.querySelector('.model-cell');
-        if (modelCell) {
-          modelCell.innerHTML = '';
-          const tag = document.createElement('span');
-          tag.className = 'tag';
-          tag.style.background = 'var(--danger)';
-          tag.textContent = 'FAILED';
-          modelCell.appendChild(tag);
-        }
-      }
-      LogHelpers.test.scenarioFail(logger, 'synthesis', String(err), 0);
+      logger.log({ category: 'SYNTHESIS', level: 'ERROR', event: 'FAIL', requestId, data: { error: String(err) }});
     }
   }
 }
 
 // ============================================
-// Cancellation
+// Knob Logic
 // ============================================
 
-function cancelAllSynthesis() {
-  if (!provider || !logger) return;
+knobMemory.onclick = () => runScenario(stressScenarios.find(s => s.id === 'memory-pressure')!);
+knobHotswap.onclick = () => runScenario(stressScenarios.find(s => s.id === 'hotswap-stress')!);
+knobFlashFlood.onclick = () => runScenario(stressScenarios.find(s => s.id === 'burst-concurrency')!);
 
-  const count = activeUIRows.size;
-  logger!.log({ category: 'SYNTHESIS', level: 'WARNING', event: 'CANCEL_ALL_SYNTHESIS', data: {
-    activeRequests: count,
-    action: 'Terminating all busy workers and spawning replacements'
-  }});
+knobPivot.onclick = () => {
+  if (!provider) return;
+  trackApiUsage('provider.updatePendingOptions');
+  logger?.log({ category: 'LIFECYCLE', level: 'INFO', event: 'PIVOT', data: { detail: 'Applying Speaker 1, Speed 1.5x to waiting queue' } });
+  provider.updatePendingOptions({ speakerId: 1, speed: 1.5, volume: 1.2 });
+};
 
-  // Call the library's cancelAllSynthesis (this triggers replaceWorker for each busy worker)
+toggleCallback.onchange = async () => {
+  if (!provider) return;
+  const enabled = toggleCallback.checked;
+  const currentModel = provider.getActiveModelId();
+  if (!currentModel) return;
+  logger?.log({ category: 'LIFECYCLE', level: 'INFO', event: 'CALLBACK_TOGGLE', data: { enabled } });
+  await provider.init({ modelId: currentModel, useCallback: enabled });
+};
+
+btnCancelAll.onclick = () => {
+  if (!provider) return;
+  trackApiUsage('provider.cancelAllSynthesis');
+  logger?.log({ category: 'SYNTHESIS', level: 'WARNING', event: 'PURGE', data: { count: activeUIRows.size } });
   provider.cancelAllSynthesis();
-
-  // The promises will reject with AbortError, caught in queueSynthesis's catch block
-  
-  logger!.log({ category: 'SYNTHESIS' as LogCategory, level: 'INFO', event: 'CANCEL_ALL_COMPLETE', data: {
-    terminated: count,
-    action: 'Workers replaced. Farm self-healed.'
-  }});
-}
+};
 
 // ============================================
-// Cache Management
+// Scenarios Bridge
 // ============================================
 
-async function resetCache() {
+async function runScenario(scenario: TestScenario | undefined) {
+  if (!scenario) return;
   initLogger();
-  
-  LogHelpers.cache.opfsClearStart(logger!);
-  
-  try {
-    await clearModelCache();
-    
-    if (provider) {
-      provider.terminate();
-      provider = null;
-    }
-
-    LogHelpers.cache.opfsClearComplete(logger!, 0);
-    statusEl.innerText = "Cache Cleared!";
-    setFarmState('idle');
-  } catch (err: any) {
-    statusEl.innerText = "Error: " + err.message;
-    LogHelpers.test.scenarioFail(logger!, 'cache-clear', err.message, 0);
-  }
-}
-
-async function resetInfraCache() {
-  initLogger();
-  LogHelpers.cache.opfsClearStart(logger!);
-  
-  try {
-    if (provider) {
-      // Use provider method for coordinated reset
-      await (provider as any).clearPiperInfraCache();
-      provider.terminate();
-      provider = null;
-    } else {
-      // Use standalone method if no active provider
-      await clearInfraCache();
-    }
-
-    LogHelpers.cache.opfsClearComplete(logger!, 0);
-    statusEl.innerText = "Infra Cache Reset! Refresh required.";
-    setFarmState('idle');
-  } catch (err: any) {
-    statusEl.innerText = "Error: " + err.message;
-    LogHelpers.test.scenarioFail(logger!, 'infra-clear', err.message, 0);
-  }
-}
-
-// ============================================
-// Test Scenario Execution
-// ============================================
-
-async function runScenario(scenario: TestScenario) {
-  initLogger();
-  
   const startTime = Date.now();
-  const btn = testScenarioGrid.querySelector(`[data-scenario="${scenario.name}"]`) as HTMLButtonElement;
-  if (btn) {
-    btn.classList.add('running');
-    const statusBtnEl = btn.querySelector('.test-status')!;
-    statusBtnEl.textContent = 'Running...';
-  }
-  
-  if (!provider) {
-    await initProvider();
-  }
+  logger?.log({ category: 'TEST', level: 'INFO', event: 'START', data: { scenario: scenario.name } });
+
+  if (!provider) await initProvider();
   
   try {
     const result = await scenario.execute(provider!);
     const duration = Date.now() - startTime;
-    
     if (result.success) {
-      passedCount++;
-      passedCountEl.textContent = passedCount.toString();
-      LogHelpers.test.scenarioPass(logger!, scenario.name, duration, 0);
-      
-      // If the scenario returned synthesis data, update the audit table
-      if (result.data && (result.data.audioData || result.data.length)) {
-        const rowId = `row-${scenario.id}`; // We should probably have a consistent ID scheme
-        const row = document.getElementById(rowId) || document.querySelector(`.audit-row[id*="${scenario.id}"]`);
-        const synthResult = result.data.audioData ? result.data : { audioData: result.data, metadata: {}, sampleRate: 22050 };
-        if (row) handleSynthesisResult(scenario.name, synthResult, row as HTMLElement);
-      }
-
-      // Update Sidebar Coverage
-      resolveSidebarUpdate(scenario.features);
+      logger?.log({ category: 'TEST', level: 'SUCCESS', event: 'PASS', duration, data: { scenario: scenario.name } });
     } else {
-      failedCount++;
-      failedCountEl.textContent = failedCount.toString();
-      LogHelpers.test.scenarioFail(logger!, scenario.name, String(result.error), duration);
+      logger?.log({ category: 'TEST', level: 'ERROR', event: 'FAIL', duration, data: { scenario: scenario.name, error: result.error } });
     }
-    
-    pendingCount--;
-    pendingCountEl.textContent = pendingCount.toString();
-    
-    if (btn) {
-      btn.classList.remove('running');
-      btn.classList.add(result.success ? 'passed' : 'failed');
-      const statusBtnEl = btn.querySelector('.test-status')!;
-      statusBtnEl.textContent = result.success
-        ? `✓ ${duration}ms`
-        : `✗ ${result.error || 'Failed'}`;
-    }
-    
   } catch (err: any) {
-    const duration = Date.now() - startTime;
-    LogHelpers.test.scenarioFail(logger!, scenario.name, String(err), duration);
-    
-    if (btn) {
-      btn.classList.remove('running');
-      btn.classList.add('failed');
-      const statusBtnEl = btn.querySelector('.test-status')!;
-      statusBtnEl.textContent = `✗ ${err.message}`;
-    }
-  }
-}
-
-
-async function runAllTests() {
-  passedCount = 0;
-  failedCount = 0;
-  passedCountEl.textContent = '0';
-  failedCountEl.textContent = '0';
-  pendingCountEl.textContent = TEST_SCENARIOS.length.toString();
-  
-  resetSidebarCoverage();
-  
-  testScenarioGrid.querySelectorAll('.test-btn').forEach(btn => {
-    btn.classList.remove('passed', 'failed', 'running');
-    const statusBtnEl = btn.querySelector('.test-status');
-    if (statusBtnEl) statusBtnEl.textContent = '';
-  });
-  
-  for (const scenario of TEST_SCENARIOS) {
-    await runScenario(scenario);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    logger?.log({ category: 'TEST', level: 'ERROR', event: 'CRASH', data: { scenario: scenario.name, error: err.message } });
   }
 }
 
 // ============================================
-// UI Sync (Metrics Polling)
+// Metrics Polling
 // ============================================
 
 setInterval(() => {
   if (provider) {
     const m = provider.metrics;
-    metricQueue.textContent = m.queueLength.toString();
-    metricBusy.textContent = m.busyWorkers.toString();
-    const activeId = provider.getActiveModelId();
-    metricActiveModel.textContent = activeId || 'None';
-    activePoolIdEl.textContent = activeId || 'None';
+    state.queueLength = m.queueLength;
+    state.busyWorkers = m.busyWorkers;
+    state.activeModelId = provider.getActiveModelId();
     
     const downloads = provider.getDownloadState();
+    renderDownloads(downloads);
+
     const isDownloading = Array.from(downloads.values()).some(s => s.status === 'downloading');
     
     if (isDownloading) {
-      promotionStateEl.textContent = 'DOWNLOADING SHADOW...';
-      promotionStateEl.style.color = 'var(--warning)';
-    } else if (activeId && activeId !== modelSelect.value) {
-      promotionStateEl.textContent = 'STALE (PENDING PROMO)';
-      promotionStateEl.style.color = 'var(--danger)';
-    } else {
-      promotionStateEl.textContent = 'STABLE (ACTIVE)';
-      promotionStateEl.style.color = 'var(--success)';
+      state.promotionState = 'downloading';
+    } else if (state.activeModelId && state.activeModelId !== modelSelect.value) {
+      state.promotionState = 'stale';
+    } else if (state.promotionState !== 'surgical' && state.promotionState !== 'hotswap') {
+      state.promotionState = 'stable';
     }
-    
-    updateDownloadUI();
+    syncUI();
   }
-}, 300);
-
-function updateDownloadUI() {
-  if (!provider) return;
-  const states = provider.getDownloadState();
-  
-  if (states.size === 0) {
-    downloadList.innerHTML = '<div style="color: #8b949e; font-size: 0.75rem; text-align: center;">No active downloads.</div>';
-    return;
-  }
-
-  if (downloadList.querySelector('div[style*="text-align: center"]')) {
-    downloadList.innerHTML = '';
-  }
-
-  states.forEach((s, id) => {
-    const pct = Math.round(s.progress * 100);
-    const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
-    const existing = document.getElementById(`dl-${safeId}`);
-    
-    if (existing) {
-      const infoSpan = existing.querySelector('.download-info span:first-child')!;
-      const pctSpan = existing.querySelector('.download-info span:last-child')!;
-      const bar = existing.querySelector('.progress-bar') as HTMLElement;
-      
-      infoSpan.textContent = `${id.split('-')[1]} (${s.status})`;
-      pctSpan.textContent = `${pct}%`;
-      bar.style.width = `${pct}%`;
-    } else {
-      const item = document.createElement('div');
-      item.id = `dl-${safeId}`;
-      item.className = 'download-item';
-      item.innerHTML = `
-        <div class="download-info">
-          <span>${id.split('-')[1]} (${s.status})</span>
-          <span>${pct}%</span>
-        </div>
-        <div class="progress-container">
-          <div class="progress-bar" style="width: ${pct}%"></div>
-        </div>
-      `;
-      downloadList.appendChild(item);
-    }
-  });
-
-  const ids = Array.from(states.keys()).map(id => `dl-${id.replace(/[^a-zA-Z0-9]/g, '_')}`);
-  Array.from(downloadList.children).forEach(child => {
-    if (child.id && !ids.includes(child.id)) {
-      child.remove();
-    }
-  });
-}
+}, 400);
 
 // ============================================
-// Event Listeners
+// Delegation
 // ============================================
 
-// Step 1: Initialize
-modelSelect.onchange = () => {
-  initLogger();
-  LogHelpers.lifecycle.initRequested(logger!, modelSelect.value, 2);
-  initProvider();
-};
-
-btnInit.onclick = () => initProvider();
-
-// Step 2: Manual Synthesis
-btnManualSynth.onclick = async () => {
-  const text = manualText.value.trim();
-  if (!text) return;
-  
-  if (!provider || !provider.isInitialized()) {
-    await initProvider();
-  }
-  
-  queueSynthesis(text);
-  manualText.value = '';
-};
-
-// Step 3: Cancellation
-btnCancelAll.onclick = () => cancelAllSynthesis();
-
-// Per-row cancel buttons (delegated)
-resultList.addEventListener('click', (e) => {
+document.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
-  const cancelBtn = target.closest('.cancel-row-btn') as HTMLButtonElement;
-  if (!cancelBtn || cancelBtn.disabled) return;
+  
+  // Cancel Synthesis Row
+  const cancelRowBtn = target.closest('.cancel-row-btn') as HTMLButtonElement;
+  if (cancelRowBtn && provider) {
+    provider.cancelSynthesis(cancelRowBtn.dataset.requestId!);
+  }
 
-  const requestId = cancelBtn.dataset.requestId;
-  if (!requestId) return;
-
-  if (activeUIRows.has(requestId)) {
-    if (provider) {
-      provider.cancelSynthesis(requestId);
-    }
-    initLogger();
-    logger!.log({ category: 'SYNTHESIS' as LogCategory, level: 'INFO', event: 'SINGLE_CANCEL', requestId, data: {
-      action: 'provider.cancelSynthesis()'
-    }});
+  // Cancel Download
+  const cancelDlBtn = target.closest('.cancel-dl-btn') as HTMLButtonElement;
+  if (cancelDlBtn && provider) {
+    provider.clearPiperModelCache().catch(err => {
+       logger?.log({ category: 'LIFECYCLE', level: 'ERROR', event: 'CACHE_CLEAR_FAIL', data: { error: String(err) } });
+    });
   }
 });
 
-// Step 4: Terminate
 btnStop.onclick = () => {
   stopAudio();
-  sequencer?.stop();
-  
-  // Cancel all in-flight before terminating
-  if (activeUIRows.size > 0) {
-    cancelAllSynthesis();
-  }
-  
   provider?.terminate();
   provider = null;
-  metricActiveModel.textContent = 'None';
-  initLogger();
-  LogHelpers.lifecycle.providerTerminated(logger!, null);
-  resultList.innerHTML = '<tr><td colspan="6" style="color: var(--danger); text-align: center; padding: 2rem;">Farm Terminated. Use Step ① to restart.</td></tr>';
-  setFarmState('terminated');
+  state.activeModelId = null;
+  setFarmState('idle');
+  logger?.log({ category: 'LIFECYCLE', level: 'WARNING', event: 'SHUTDOWN', data: {} });
 };
 
-btnClearCache.onclick = resetCache;
-btnClearInfra.onclick = resetInfraCache;
+btnClearLogs.onclick = () => logger?.clearLogs();
 
-// Speed/Volume sliders
-speedSlider.oninput = () => {
-  speedValue.textContent = `${parseFloat(speedSlider.value).toFixed(1)}x`;
-};
-
-volumeSlider.oninput = () => {
-  volumeValue.textContent = parseFloat(volumeSlider.value).toFixed(1);
-};
-
-// Log filtering
-logFilterBar.addEventListener('click', (e) => {
-  const target = e.target as HTMLButtonElement;
-  if (target.classList.contains('log-filter-btn') && target.dataset.category) {
-    logFilterBar.querySelectorAll('.log-filter-btn').forEach(btn => btn.classList.remove('active'));
-    target.classList.add('active');
-    
-    initLogger();
-    logger!.filterByCategory(target.dataset.category as LogCategory | 'ALL');
+btnExportLogs.onclick = () => {
+  const logs = logger?.exportLogs();
+  if (logs) {
+    const blob = new Blob([logs], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `piper-c2-logs-${Date.now()}.json`;
+    a.click();
   }
-});
-
-clearLogsBtn.onclick = () => {
-  initLogger();
-  logger!.clearLogs();
 };
 
-// Export logs
-exportLogsBtn.onclick = () => {
-  initLogger();
-  const logs = logger!.exportLogs();
-  const blob = new Blob([logs], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `piper-test-logs-${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-};
-
-// Test scenario buttons
-testScenarioGrid.addEventListener('click', async (e) => {
-  const target = e.target as HTMLElement;
-  const btn = target.closest('.test-btn') as HTMLButtonElement;
-  
-  if (btn && btn.dataset.scenario) {
-    const scenario = TEST_SCENARIOS.find(s => s.id === btn.dataset.scenario);
-    if (scenario) {
-      await runScenario(scenario);
-    }
-  }
-});
-
-// Run all button
-runAllBtn.onclick = runAllTests;
-
-// ============================================
-// Initialize
-// ============================================
-
-function initTestGrid() {
-  TEST_SCENARIOS.forEach(scenario => {
-    const btn = testScenarioGrid.querySelector(`[data-scenario="${scenario.id}"]`);
-    if (btn) {
-      const tagsContainer = document.createElement('div');
-      tagsContainer.className = 'coverage-tags';
-      scenario.features.forEach(feature => {
-        const tag = document.createElement('span');
-        tag.className = 'cov-tag';
-        tag.textContent = feature;
-        tagsContainer.appendChild(tag);
-      });
-      btn.appendChild(tagsContainer);
-    }
-  });
-}
-
+renderApiCoverage();
 initLogger();
-initTestGrid();
-pendingCountEl.textContent = pendingCount.toString();
-LogHelpers.test.scenarioStart(logger!, 'init', 'Integrated Load Verification Runner Initialized');
+logger?.log({ category: 'LIFECYCLE', level: 'SUCCESS', event: 'Verification_ONLINE', data: {} });
+
+btnInit.onclick = () => {
+  initProvider().then(() => {
+    queueSynthesis("Piper Verification Control Panel Online. Systems Nominal.", { silent: true })
+      .catch(err => console.error("Welcome synthesis failed:", err));
+  }).catch(err => {
+    console.error("Manual init failed:", err);
+  });
+};
+
 setFarmState('idle');

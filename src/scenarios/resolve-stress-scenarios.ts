@@ -25,7 +25,20 @@ export const stressScenarios: TestScenario[] = [
     features: ["provider.synthesize", "FIFO order sequencing"],
     execute: async (provider: PiperProvider) => {
       const verifier = createFifoVerifier(noopLogger);
-      return await runFifoTest(provider as any, noopLogger, verifier, 50);
+      return await runFifoTest(provider, noopLogger, verifier, 50);
+    }
+  },
+  {
+    id: "memory-pressure",
+    name: "Memory Pressure Test",
+    category: "stress",
+    description: "Verify stability under heavy payload (100 parallel requests).",
+    features: ["provider.synthesize", "multi-threaded processing"],
+    execute: async (provider) => {
+      const longText = "The quick brown fox jumps over the lazy dog while the system orchestrates multiple threads for high-performance synthesis and memory management.";
+      const tasks = Array.from({ length: 100 }, (_, i) => provider.synthesize(`${longText} [Sequence ${i}]`));
+      await Promise.all(tasks);
+      return { success: true, data: undefined, message: "Handled 100 parallel requests." };
     }
   },
   {
@@ -37,28 +50,20 @@ export const stressScenarios: TestScenario[] = [
     execute: async (provider) => {
       const models = ['en_US-bryce-medium', 'en_US-ljspeech-high', 'en_US-arctic-medium'];
       try {
+        // Rapid rotation to stress shadow pool creation and abortion
+        const swapTasks = [];
         for (let i = 0; i < 10; i++) {
-          await provider.init({
-            modelId: models[i % models.length],
-            cpuInstances: 2
-          });
+          swapTasks.push(provider.init({
+            modelId: models[Math.floor(Math.random() * models.length)],
+          }));
+          // Artificial delay to allow some shadow pools to partially initialize
+          await new Promise(r => setTimeout(r, 150));
         }
-        return { success: true, data: undefined, message: "Completed 10 hotswap cycles without error." };
+        await Promise.all(swapTasks);
+        return { success: true, data: undefined, message: "Completed 10 hotswap cycles." };
       } catch (error: any) {
         return { success: false, error: error instanceof Error ? error : String(error) };
       }
-    }
-  },
-  {
-    id: "memory-pressure",
-    name: "Memory Pressure Test",
-    category: "stress",
-    description: "Verify stability under heavy payload (100 parallel requests).",
-    features: ["provider.synthesize", "multi-threaded processing"],
-    execute: async (provider) => {
-      const tasks = Array.from({ length: 100 }, (_, i) => provider.synthesize(`Memory pressure task ${i}`));
-      await Promise.all(tasks);
-      return { success: true, data: undefined, message: "Handled 100 parallel requests." };
     }
   },
   {
@@ -68,7 +73,8 @@ export const stressScenarios: TestScenario[] = [
     description: "Simultaneous burst of 50 tasks.",
     features: ["provider.synthesize", "FIFO order sequencing"],
     execute: async (provider) => {
-      const tasks = Array.from({ length: 50 }, (_, i) => provider.synthesize(`Flood task ${i}`));
+      const texts = Array.from({ length: 50 }, (_, i) => `Flood task ${i}`);
+      const tasks = texts.map(text => provider.synthesize(text));
       await Promise.all(tasks);
       return { success: true, data: undefined, message: "High-concurrency burst completed." };
     }

@@ -75,8 +75,15 @@ export const stressScenarios: TestScenario[] = [
     execute: async (provider) => {
       const texts = Array.from({ length: 50 }, (_, i) => `Flood task ${i}`);
       const tasks = texts.map(text => provider.synthesize(text));
-      await Promise.all(tasks);
-      return { success: true, data: undefined, message: "High-concurrency burst completed." };
+      try {
+        await Promise.all(tasks);
+        return { success: true, data: undefined, message: "High-concurrency burst completed." };
+      } catch (error: any) {
+        return { 
+          success: false, 
+          error: error.name === 'AbortError' ? 'Synthesis cancelled before completion' : error.message 
+        };
+      }
     }
   }
 ];

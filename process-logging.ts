@@ -61,105 +61,84 @@ export function createProcessLogger(container: HTMLElement): ProcessLogger {
 
   const generateId = () => `log-${++entryIdCounter}`;
 
+  const escapeHtml = (unsafe: string): string => {
+    return unsafe
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
   const formatTimestamp = () => {
     const now = new Date();
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
   };
 
-  const renderEntry = (entry: LogEntry): HTMLElement => {
-    const wrapper = document.createElement('div');
-    wrapper.className = `log-entry-wrapper ${entry.expanded ? 'expanded' : ''}`;
-    wrapper.dataset.id = entry.id;
-    wrapper.dataset.category = entry.category;
+  let logTable: HTMLTableElement | null = null;
+  let tbody: HTMLTableSectionElement | null = null;
 
-    // Collapsed view
-    const collapsed = document.createElement('div');
-    collapsed.className = 'log-entry-collapsed';
-    collapsed.innerHTML = `
-      <span class="log-time">${entry.timestamp}</span>
-      <span class="log-category" style="color: ${CATEGORY_COLORS[entry.category]}">[${entry.category}]</span>
-      <span class="log-level" style="color: ${LEVEL_COLORS[entry.level]}">${entry.level}</span>
-      <span class="log-event">${entry.event}</span>
-      ${entry.modelId ? `<span class="log-model" style="color: #8b949e">${entry.modelId.split('-')[1] || entry.modelId}</span>` : ''}
-      ${entry.requestId ? `<span class="log-request" style="color: #8b949e">#${entry.requestId.slice(-4)}</span>` : ''}
-      ${entry.duration ? `<span class="log-duration" style="color: #8b949e">${entry.duration}ms</span>` : ''}
-      <span class="log-expand-icon">${entry.expanded ? '▼' : '▶'}</span>
+  const initContainer = () => {
+    if (logTable) return;
+    container.innerHTML = '';
+    
+    logTable = document.createElement('table');
+    logTable.className = 'log-flat-table';
+    logTable.style.width = '100%';
+    logTable.style.borderCollapse = 'collapse';
+    logTable.style.fontSize = '0.65rem';
+    logTable.style.fontFamily = 'var(--font-mono)';
+    
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+      <tr style="text-align: left; background: var(--bg-surface); color: var(--text-dim); border-bottom: 1px solid var(--border-subtle);">
+        <th style="padding: 6px 4px;">Time</th>
+        <th style="padding: 6px 4px;">Cat</th>
+        <th style="padding: 6px 4px;">Level</th>
+        <th style="padding: 6px 4px;">Event</th>
+        <th style="padding: 6px 4px;">Target</th>
+        <th style="padding: 6px 4px;">Req</th>
+        <th style="padding: 6px 4px;">Data</th>
+        <th style="padding: 6px 4px;">Dur</th>
+      </tr>
     `;
+    logTable.appendChild(thead);
+    
+    tbody = document.createElement('tbody');
+    logTable.appendChild(tbody);
+    container.appendChild(logTable);
+  };
 
-    // Expanded view (detail panel)
-    const expandedView = document.createElement('div');
-    expandedView.className = 'log-entry-expanded';
-    expandedView.style.display = entry.expanded ? 'block' : 'none';
+  const renderEntry = (entry: LogEntry): HTMLTableRowElement => {
+    const row = document.createElement('tr');
+    row.dataset.id = entry.id;
+    row.style.borderBottom = '1px solid hsla(0, 0%, 100%, 0.05)';
+    row.style.verticalAlign = 'top';
+    
+    const detailsObj = entry.data || {};
+    const detailsStr = Object.entries(detailsObj)
+        .map(([k, v]) => `<span style="color:var(--text-dim)">${k}:</span> <span style="color:#fff">${typeof v === 'object' ? escapeHtml(JSON.stringify(v)) : escapeHtml(String(v))}</span>`)
+        .join(' | ');
 
-    const detailTable = document.createElement('table');
-    detailTable.className = 'log-detail-table';
+    const target = entry.modelId ? (entry.modelId.split('-')[1] || entry.modelId) : (entry.workerId !== undefined ? `W-${entry.workerId}` : '-');
 
-    // Add all data fields
-    Object.entries(entry.data || {}).forEach(([key, value]) => {
-      const row = document.createElement('tr');
-      const keyCell = document.createElement('td');
-      keyCell.className = 'log-detail-key';
-      keyCell.textContent = key;
-      const valueCell = document.createElement('td');
-      valueCell.className = 'log-detail-value';
-      
-      // Format value based on type
-      if (typeof value === 'object' && value !== null) {
-        valueCell.textContent = JSON.stringify(value, null, 2);
-        valueCell.style.whiteSpace = 'pre-wrap';
-      } else if (typeof value === 'number') {
-        valueCell.textContent = value.toLocaleString();
-      } else {
-        valueCell.textContent = String(value);
-      }
-      
-      row.appendChild(keyCell);
-      row.appendChild(valueCell);
-      detailTable.appendChild(row);
-    });
-
-    // Add metadata fields
-    if (entry.modelId) {
-      const row = document.createElement('tr');
-      row.innerHTML = `<td class="log-detail-key">modelId</td><td class="log-detail-value">${entry.modelId}</td>`;
-      detailTable.appendChild(row);
-    }
-    if (entry.requestId) {
-      const row = document.createElement('tr');
-      row.innerHTML = `<td class="log-detail-key">requestId</td><td class="log-detail-value">${entry.requestId}</td>`;
-      detailTable.appendChild(row);
-    }
-    if (entry.workerId !== undefined) {
-      const row = document.createElement('tr');
-      row.innerHTML = `<td class="log-detail-key">workerId</td><td class="log-detail-value">${entry.workerId}</td>`;
-      detailTable.appendChild(row);
-    }
-    if (entry.duration !== undefined) {
-      const row = document.createElement('tr');
-      row.innerHTML = `<td class="log-detail-key">duration</td><td class="log-detail-value">${entry.duration}ms</td>`;
-      detailTable.appendChild(row);
-    }
-
-    expandedView.appendChild(detailTable);
-    wrapper.appendChild(collapsed);
-    wrapper.appendChild(expandedView);
-
-    // Click handler for expand/collapse
-    collapsed.addEventListener('click', () => {
-      entry.expanded = !entry.expanded;
-      wrapper.classList.toggle('expanded', entry.expanded);
-      expandedView.style.display = entry.expanded ? 'block' : 'none';
-      collapsed.querySelector('.log-expand-icon')!.textContent = entry.expanded ? '▼' : '▶';
-    });
-
-    return wrapper;
+    row.innerHTML = `
+      <td style="padding: 4px; color: var(--text-dim); white-space: nowrap;">${entry.timestamp}</td>
+      <td style="padding: 4px; color: ${CATEGORY_COLORS[entry.category]}; font-weight: bold;">[${entry.category}]</td>
+      <td style="padding: 4px; color: ${LEVEL_COLORS[entry.level]}">${entry.level}</td>
+      <td style="padding: 4px; color: #fff; white-space: nowrap;">${entry.event}</td>
+      <td style="padding: 4px; color: #8b949e; white-space: nowrap;">${target}</td>
+      <td style="padding: 4px; color: #8b949e; white-space: nowrap;">${entry.requestId ? `#${entry.requestId.slice(-4)}` : '-'}</td>
+      <td style="padding: 4px; max-width: 400px; word-break: break-word;">${detailsStr}</td>
+      <td style="padding: 4px; color: #8b949e; white-space: nowrap;">${entry.duration ? `${entry.duration}ms` : '-'}</td>
+    `;
+    return row;
   };
 
   const render = () => {
-    // Clear container
-    container.innerHTML = '';
+    logTable = null;
+    initContainer();
 
-    // Filter entries
     const filtered = currentFilter === 'ALL' 
       ? entries 
       : entries.filter(e => e.category === currentFilter);
@@ -168,13 +147,15 @@ export function createProcessLogger(container: HTMLElement): ProcessLogger {
     const reversed = [...filtered].reverse();
     reversed.forEach(entry => {
       const element = renderEntry(entry);
-      container.appendChild(element);
+      tbody!.appendChild(element);
     });
 
-    // Add count indicator
     if (filtered.length > 0) {
       const countEl = document.createElement('div');
       countEl.className = 'log-count';
+      countEl.style.fontSize = '0.6rem';
+      countEl.style.padding = '4px';
+      countEl.style.color = 'var(--text-dim)';
       countEl.textContent = `${filtered.length} entries (${entries.length} total)`;
       container.insertBefore(countEl, container.firstChild);
     }
@@ -190,46 +171,40 @@ export function createProcessLogger(container: HTMLElement): ProcessLogger {
 
     entries.push(fullEntry);
 
-    // Trim if over max
     if (entries.length > maxEntries) {
       entries = entries.slice(-maxEntries);
     }
 
-    // Add to DOM incrementally
+    if (!logTable) initContainer();
+
     if (currentFilter === 'ALL' || fullEntry.category === currentFilter) {
       const element = renderEntry(fullEntry);
       
-      // If we have a count indicator, insert after it, else prepend
-      const firstEntry = container.querySelector('.log-entry-wrapper');
-      if (firstEntry) {
-        container.insertBefore(element, firstEntry);
+      if (tbody!.firstChild) {
+        tbody!.insertBefore(element, tbody!.firstChild);
       } else {
-        container.appendChild(element);
+        tbody!.appendChild(element);
       }
       
-      // Update count indicator
       const countEl = container.querySelector('.log-count');
       if (countEl) {
         const filteredCount = currentFilter === 'ALL' ? entries.length : entries.filter(e => e.category === currentFilter).length;
         countEl.textContent = `${filteredCount} entries (${entries.length} total)`;
+      } else {
+        const newCountEl = document.createElement('div');
+        newCountEl.className = 'log-count';
+        newCountEl.style.fontSize = '0.6rem';
+        newCountEl.style.padding = '4px';
+        newCountEl.style.color = 'var(--text-dim)';
+        newCountEl.textContent = `1 entries (${entries.length} total)`;
+        container.insertBefore(newCountEl, container.firstChild);
       }
     }
 
-    // Trim DOM if over max (simple selector-based trim)
-    const domEntries = container.querySelectorAll('.log-entry-wrapper');
+    const domEntries = tbody!.querySelectorAll('tr');
     if (domEntries.length > maxEntries) {
       for (let i = maxEntries; i < domEntries.length; i++) {
         domEntries[i].remove();
-      }
-    }
-
-    // Non-intrusive: only scroll if the user was already near the bottom
-    const isAtBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 100;
-    
-    if (isAtBottom && container.lastChild) {
-      const lastEntry = container.querySelector('.log-entry-wrapper:last-of-type');
-      if (lastEntry) {
-        lastEntry.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }
   };

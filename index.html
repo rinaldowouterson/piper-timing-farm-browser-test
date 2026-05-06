@@ -64,7 +64,7 @@
     <main>
       <header class="module" style="padding: 1rem;">
         <div style="display: flex; gap: 1rem; align-items: center;">
-          <div style="flex: 1; display: flex; flex-direction: column; gap: 0.2rem;">
+          <div style="flex: 2; display: flex; flex-direction: column; gap: 0.2rem;">
             <span class="knob-label">Model Selection</span>
             <select id="modelSelect" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: white; padding: 0.5rem; border-radius: 8px; font-family: var(--font-ui); font-size: 0.8rem;">
               <option value="en_US-bryce-medium">Bryce (English)</option>
@@ -72,6 +72,18 @@
               <option value="en_GB-cori-medium">Cori (British English)</option>
               <option value="en_US-libritts-high">LibriTTS (904 Speakers)</option>
             </select>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 0.2rem;">
+            <span class="knob-label">Speaker ID</span>
+            <input type="number" id="speakerIdInput" value="0" min="0" step="1" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: white; padding: 0.5rem; border-radius: 8px; font-family: var(--font-ui); font-size: 0.8rem; width: 100%; outline: none;">
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 0.2rem;">
+            <span class="knob-label">Speed</span>
+            <input type="number" id="speedInput" value="1.0" min="0.1" max="5.0" step="0.1" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: white; padding: 0.5rem; border-radius: 8px; font-family: var(--font-ui); font-size: 0.8rem; width: 100%; outline: none;">
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 0.2rem;">
+            <span class="knob-label">Volume</span>
+            <input type="number" id="volumeInput" value="1.0" min="0.1" max="5.0" step="0.1" style="background: var(--bg-surface); border: 1px solid var(--border-subtle); color: white; padding: 0.5rem; border-radius: 8px; font-family: var(--font-ui); font-size: 0.8rem; width: 100%; outline: none;">
           </div>
           <button id="btnInit" class="knob primary" style="padding: 0.6rem 1.5rem; height: auto;">
             <span class="knob-value">INIT / SWAP</span>
@@ -97,6 +109,9 @@
               <tr>
                 <th>ID</th>
                 <th>Model</th>
+                <th>Speaker</th>
+                <th>Speed</th>
+                <th>Vol</th>
                 <th>Sentence</th>
                 <th>Status</th>
                 <th>Action</th>

@@ -34,6 +34,9 @@ const knobFlashFlood = document.getElementById('knobFlashFlood') as HTMLButtonEl
 const knobPivot = document.getElementById('knobPivot') as HTMLButtonElement;
 const toggleCallback = document.getElementById('toggleCallback') as HTMLInputElement;
 const btnCancelAll = document.getElementById('btnCancelAll') as HTMLButtonElement;
+const speakerIdInput = document.getElementById('speakerIdInput') as HTMLInputElement;
+const speedInput = document.getElementById('speedInput') as HTMLInputElement;
+const volumeInput = document.getElementById('volumeInput') as HTMLInputElement;
 
 const btnClearLogs = document.getElementById('btnClearLogs') as HTMLButtonElement;
 const btnExportLogs = document.getElementById('btnExportLogs') as HTMLButtonElement;
@@ -73,6 +76,7 @@ let verifier: FifoVerifier | null = null;
 
 const activeUIRows = new Set<string>();
 const resultRegistry = new Map<string, Promise<AudioSynthesisResult>>();
+const requestParams = new Map<string, { speakerId?: number, speed?: number, volume?: number }>();
 
 function syncUI() {
   renderDashboard(state);
@@ -239,7 +243,21 @@ async function initProvider(options: {
     const originalSynthesize = provider.synthesize.bind(provider);
     provider.synthesize = (text, options) => {
       const requestId = options?.requestId || `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const p = originalSynthesize(text, { ...options, requestId });
+      
+      const defaultSpeed = parseFloat(speedInput.value) || 1.0;
+      const defaultVolume = parseFloat(volumeInput.value) || 1.0;
+      const defaultSpeakerId = parseInt(speakerIdInput.value) || 0;
+
+      const mergedOptions = {
+        ...options,
+        requestId,
+        speed: options?.speed ?? defaultSpeed,
+        volume: options?.volume ?? defaultVolume,
+        speakerId: options?.speakerId ?? defaultSpeakerId
+      };
+
+      requestParams.set(requestId, mergedOptions);
+      const p = originalSynthesize(text, mergedOptions);
       resultRegistry.set(requestId, p);
       return p;
     };
@@ -322,9 +340,17 @@ function createResultCard(text: string, requestId: string): HTMLElement {
   const escapedText = escapeHtml(displayText);
   const shortId = requestId.split('-').pop();
   
+  const params = requestParams.get(requestId) || {};
+  const speedStr = params.speed !== undefined ? params.speed.toFixed(1) : '1.0';
+  const volStr = params.volume !== undefined ? params.volume.toFixed(1) : '1.0';
+  const speakerStr = params.speakerId !== undefined ? String(params.speakerId) : '-';
+
   row.innerHTML = `
     <td style="font-family: var(--font-mono); color: var(--text-dim); font-size: 0.7rem;">${shortId}</td>
     <td class="model-cell"><span class="status-tag queued">QUEUED</span></td>
+    <td class="speaker-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${speakerStr}</td>
+    <td class="speed-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${speedStr}x</td>
+    <td class="volume-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${volStr}x</td>
     <td class="sentence-cell" title="${escapeHtml(text)}">${escapedText}</td>
     <td class="status-cell" style="font-family: var(--font-mono); color: var(--text-dim);">-</td>
     <td>
@@ -347,12 +373,14 @@ function markRowDone(row: HTMLElement, requestId: string, result?: AudioSynthesi
   row.classList.add('done');
   
   const modelCell = row.querySelector('.model-cell')!;
+  const speakerCell = row.querySelector('.speaker-cell')!;
   const statusCell = row.querySelector('.status-cell')!;
   const playBtn = row.querySelector('.play-btn') as HTMLButtonElement;
   const cancelBtn = row.querySelector('.cancel-row-btn') as HTMLButtonElement;
 
   const modelId = result?.metadata.modelId || state.activeModelId || 'unknown';
   modelCell.innerHTML = `<span class="status-tag done">${modelId}</span>`;
+  speakerCell.textContent = result?.metadata.speakerId !== undefined ? String(result.metadata.speakerId) : '-';
   
   if (result) {
     statusCell.textContent = `${Math.round(result.durationMs)}ms`;
@@ -396,14 +424,13 @@ async function queueSynthesis(text: string, options: { speakerId?: number; speed
   if (!provider || !audioCtx || !logger) return;
   trackApiUsage('provider.synthesize');
   
+  // Options are merged in the monkey-patch, so we can just pass them directly
   const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   logger.log({ category: 'SYNTHESIS', level: 'INFO', event: 'REQUEST', requestId, data: { text } });
 
   try {
     const result = await provider.synthesize(text, { 
-      speakerId: options.speakerId, 
-      speed: options.speed, 
-      volume: options.volume,
+      ...options,
       requestId
     });
     
@@ -424,15 +451,50 @@ async function queueSynthesis(text: string, options: { speakerId?: number; speed
 // Knob Logic
 // ============================================
 
-knobMemory.onclick = () => runScenario(stressScenarios.find(s => s.id === 'memory-pressure')!);
-knobHotswap.onclick = () => runScenario(stressScenarios.find(s => s.id === 'hotswap-stress')!);
-knobFlashFlood.onclick = () => runScenario(stressScenarios.find(s => s.id === 'burst-concurrency')!);
+knobMemory.onclick = () => {
+  initLogger();
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: MEMORY' } });
+  runScenario(stressScenarios.find(s => s.id === 'memory-pressure')!);
+};
+knobHotswap.onclick = () => {
+  initLogger();
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: HOTSWAP' } });
+  runScenario(stressScenarios.find(s => s.id === 'hotswap-stress')!);
+};
+knobFlashFlood.onclick = () => {
+  initLogger();
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: FLASH_FLOOD' } });
+  runScenario(stressScenarios.find(s => s.id === 'burst-concurrency')!);
+};
 
 knobPivot.onclick = () => {
+  initLogger();
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'LIVE_UPDATE: PIVOT', speakerId: speakerIdInput.value } });
   if (!provider) return;
   trackApiUsage('provider.updatePendingOptions');
-  logger?.log({ category: 'LIFECYCLE', level: 'INFO', event: 'PIVOT', data: { detail: 'Applying Speaker 1, Speed 1.5x to waiting queue' } });
-  provider.updatePendingOptions({ speakerId: 1, speed: 1.5, volume: 1.2 });
+  const speakerId = parseInt(speakerIdInput.value) || 0;
+  const speed = parseFloat(speedInput.value) || 1.0;
+  const volume = parseFloat(volumeInput.value) || 1.0;
+  
+  logger?.log({ category: 'LIFECYCLE', level: 'INFO', event: 'PIVOT', data: { detail: `Applying Speaker ${speakerId}, Speed ${speed}x, Vol ${volume}x to waiting queue` } });
+  
+  provider.updatePendingOptions({ speakerId, speed, volume });
+
+  // Visually update the UI for all pending rows
+  Array.from(activeUIRows).forEach(reqId => {
+    const row = document.getElementById(`row-${reqId}`);
+    if (row && row.classList.contains('pending') && !row.classList.contains('active')) {
+      const spkCell = row.querySelector('.speaker-cell');
+      const spdCell = row.querySelector('.speed-cell');
+      const volCell = row.querySelector('.volume-cell');
+      if (spkCell) spkCell.textContent = String(speakerId);
+      if (spdCell) spdCell.textContent = `${speed.toFixed(1)}x`;
+      if (volCell) volCell.textContent = `${volume.toFixed(1)}x`;
+      
+      // Update our internal tracking map so markRowDone still shows it
+      requestParams.set(reqId, { ...requestParams.get(reqId), speakerId, speed, volume });
+    }
+  });
 };
 
 toggleCallback.onchange = async () => {
@@ -469,10 +531,23 @@ async function runScenario(scenario: TestScenario | undefined) {
     if (result.success) {
       logger?.log({ category: 'TEST', level: 'SUCCESS', event: 'PASS', duration, data: { scenario: scenario.name } });
     } else {
-      logger?.log({ category: 'TEST', level: 'ERROR', event: 'FAIL', duration, data: { scenario: scenario.name, error: result.error } });
+      const isCancellation = result.error === 'Synthesis cancelled before completion' || result.error === 'Synthesis cancelled';
+      logger?.log({ 
+        category: 'TEST', 
+        level: isCancellation ? 'INFO' : 'ERROR', 
+        event: isCancellation ? 'CANCEL' : 'FAIL', 
+        duration, 
+        data: { scenario: scenario.name, error: result.error } 
+      });
     }
   } catch (err: any) {
-    logger?.log({ category: 'TEST', level: 'ERROR', event: 'CRASH', data: { scenario: scenario.name, error: err.message } });
+    const isCancellation = err.message === 'Synthesis cancelled before completion' || err.message === 'Synthesis cancelled';
+    logger?.log({ 
+      category: 'TEST', 
+      level: isCancellation ? 'INFO' : 'ERROR', 
+      event: isCancellation ? 'CANCEL' : 'CRASH', 
+      data: { scenario: scenario.name, error: err.message } 
+    });
   }
 }
 
@@ -553,6 +628,8 @@ initLogger();
 logger?.log({ category: 'LIFECYCLE', level: 'SUCCESS', event: 'Verification_ONLINE', data: {} });
 
 btnInit.onclick = () => {
+  initLogger();
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'INIT/SWAP', modelId: modelSelect.value } });
   initProvider().then(() => {
     queueSynthesis("Piper Verification Control Panel Online. Systems Nominal.", { silent: true })
       .catch(err => console.error("Welcome synthesis failed:", err));
@@ -560,5 +637,28 @@ btnInit.onclick = () => {
     console.error("Manual init failed:", err);
   });
 };
+
+// ============================================
+// Dynamic Validation
+// ============================================
+
+async function updateSpeakerBounds() {
+  try {
+    const response = await fetch('/piper-gate/infra/piper-model-cards.json');
+    const cards = await response.json();
+    const activeModel = cards.find((c: any) => c.id === modelSelect.value);
+    if (activeModel) {
+      speakerIdInput.max = String(activeModel.numSpeakers - 1);
+      if (parseInt(speakerIdInput.value) > activeModel.numSpeakers - 1) {
+        speakerIdInput.value = "0";
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to fetch model cards for validation:", err);
+  }
+}
+
+modelSelect.addEventListener('change', updateSpeakerBounds);
+updateSpeakerBounds();
 
 setFarmState('idle');

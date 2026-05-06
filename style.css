@@ -177,6 +177,11 @@ h2 {
   color: var(--accent);
 }
 
+input[type="number"]:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
 /* --- Knobs & Controls --- */
 .knob-grid {
   display: grid;

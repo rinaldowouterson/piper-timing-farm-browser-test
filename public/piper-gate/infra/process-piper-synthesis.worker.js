@@ -1,6 +1,6 @@
 //#region src/worker/process-piper-synthesis.worker.ts
-var e = null, t = null, n = null, r = null, i = -1, a = "CPU", o = "", s = 0, c = null, l = () => `[PiperWorker:${i}:${a}]`;
-function u(e, t) {
+var e = null, t = null, n = null, r = null, i = -1, a = "CPU", o = "", s = 0, c = -1, l = null, u = () => `[PiperWorker:${i}:${a}]`;
+function d(e, t) {
 	self.postMessage({
 		type: "log",
 		payload: {
@@ -11,28 +11,28 @@ function u(e, t) {
 		}
 	});
 }
-var d = (e, ...t) => {
-	let n = `${l()} ${e}`;
-	console.log(n, ...t), u("info", e + (t.length ? " " + JSON.stringify(t) : ""));
-}, f = (e, ...t) => {
-	let n = `${l()} ${e}`;
-	console.warn(n, ...t), u("warn", e + (t.length ? " " + JSON.stringify(t) : ""));
+var f = (e, ...t) => {
+	let n = `${u()} ${e}`;
+	console.log(n, ...t), d("info", e + (t.length ? " " + JSON.stringify(t) : ""));
 }, p = (e, ...t) => {
-	let n = `${l()} ${e}`;
-	console.error(n, ...t), u("error", e + (t.length ? " " + JSON.stringify(t) : ""));
+	let n = `${u()} ${e}`;
+	console.warn(n, ...t), d("warn", e + (t.length ? " " + JSON.stringify(t) : ""));
+}, m = (e, ...t) => {
+	let n = `${u()} ${e}`;
+	console.error(n, ...t), d("error", e + (t.length ? " " + JSON.stringify(t) : ""));
 };
 self.onmessage = async (e) => {
 	let t = e.data;
 	try {
 		switch (t.type) {
 			case "init":
-				await m(t.config);
+				c = t.configCounter, await _(t.config);
 				break;
 			case "load-callback":
-				await h(t.useCallback);
+				c = t.configCounter, await v(t.useCallback);
 				break;
 			case "synthesize":
-				await g(t.text, t.requestId, {
+				await y(t.text, t.requestId, {
 					speed: t.speed,
 					volume: t.volume,
 					speakerId: t.speakerId
@@ -40,8 +40,8 @@ self.onmessage = async (e) => {
 				break;
 		}
 	} catch (e) {
-		let n = C(e);
-		p("Uncaught worker error:", n), S({
+		let n = E(e);
+		m("Uncaught worker error:", n), T({
 			type: "error",
 			instanceId: i,
 			error: n,
@@ -49,10 +49,18 @@ self.onmessage = async (e) => {
 		});
 	}
 };
-async function m(n) {
-	let { modelId: a, onnxRuntimePaths: c, piperPaths: l, instanceId: u, useCallback: f, defaultSpeakerId: m } = n;
-	i = u || 0, o = a, s = m || 0, d(`=== INIT START [${a}] ===`, {
-		useCallback: f,
+var h = {
+	wasm: "/piper-gate/infra/",
+	mjs: "/piper-gate/infra/ort.wasm.min.mjs"
+}, g = {
+	piperData: "/piper-gate/infra/piper_phonemize.data",
+	piperJs: "/piper-gate/infra/piper_phonemize.js",
+	piperWasm: "/piper-gate/infra/piper_phonemize.wasm"
+};
+async function _(n) {
+	let { modelId: a, instanceId: l, useCallback: u, defaultSpeakerId: d } = n;
+	i = l || 0, o = a, s = d || 0, f(`=== INIT START [${a}] ===`, {
+		useCallback: u,
 		defaultSpeakerId: s
 	});
 	try {
@@ -62,102 +70,105 @@ async function m(n) {
 		r = JSON.parse(o);
 		let s = await fetch(`/piper-gate/voices/${a}.onnx`);
 		if (!s.ok) throw Error(`Failed to fetch model: ${s.statusText}`);
-		let u = await s.arrayBuffer(), p = await fetch(c.mjs);
-		if (!p.ok) throw Error(`Failed to fetch ORT glue: ${p.statusText}`);
-		await p.text();
-		let m = await import(
+		let l = await s.arrayBuffer(), d = await fetch(h.mjs);
+		if (!d.ok) throw Error(`Failed to fetch ORT glue: ${d.statusText}`);
+		await d.text();
+		let p = await import(
 			/* @vite-ignore */
-			c.mjs
+			h.mjs
 );
-		if (t = m.default || m, !t || !t.env) throw Error("Invalid ONNX Runtime module: 'env' is missing. Check if the .mjs URL is correct.");
-		t.env.wasm.wasmPaths = c.wasm, t.env.wasm.numThreads = 1, e = await t.InferenceSession.create(u, {
+		if (t = p.default || p, !t || !t.env) throw Error("Invalid ONNX Runtime module: 'env' is missing. Check if the .mjs URL is correct.");
+		t.env.wasm.wasmPaths = h.wasm, t.env.wasm.numThreads = 1, e = await t.InferenceSession.create(l, {
 			executionProviders: ["wasm"],
 			graphOptimizationLevel: "all"
-		}), await v(l), f && await h(!0), d("=== INIT COMPLETE ==="), S({
+		}), await x(g), u && await v(!0), f("=== INIT COMPLETE ==="), T({
 			type: "ready",
-			instanceId: i
+			instanceId: i,
+			configCounter: c
 		});
 	} catch (e) {
 		let t = e instanceof Error ? e : Error(String(e));
-		throw p("Init failed:", t.message), t;
+		throw m("Init failed:", t.message), t;
 	}
 }
-async function h(e) {
+async function v(e) {
 	if (!e) {
-		c &&= (d("Callback disabled via surgical toggle"), null), S({
+		l &&= (f("Callback disabled via surgical toggle"), null), T({
 			type: "callback-off",
-			instanceId: i
+			instanceId: i,
+			configCounter: c
 		});
 		return;
 	}
 	let t = new URL("./piper-callback.js", self.location.href).href;
-	d(`Loading sovereign callback: ${t}`);
+	f(`Loading synthesis callback: ${t}`);
 	try {
 		let e = await fetch(t);
 		if (!e.ok) {
 			let t = await e.text().catch(() => e.statusText);
 			throw Error(`Gateway Error (${e.status}): ${t}`);
 		}
-		if (c = (await import(
+		if (l = (await import(
 			/* @vite-ignore */
 			t
-)).onSynthesisComplete, typeof c != "function") throw Error(`Export 'onSynthesisComplete' is not a function in ${t}`);
-		d("Sovereign callback loaded successfully"), S({
+)).onSynthesisComplete, typeof l != "function") throw Error(`Export 'onSynthesisComplete' is not a function in ${t}`);
+		f("Synthesis callback loaded successfully"), T({
 			type: "callback-on",
-			instanceId: i
+			instanceId: i,
+			configCounter: c
 		});
 	} catch (e) {
-		c = null;
+		l = null;
 		let t = e instanceof Error ? e.message : String(e);
-		throw p("Failed to load sovereign callback module:", t), S({
+		throw m("Failed to load synthesis callback module:", t), T({
 			type: "callback-failed",
 			instanceId: i,
 			error: t
 		}), e;
 	}
 }
-async function g(a, s, l) {
+async function y(a, s, c) {
 	if (!e || !t || !n || !r) throw Error("Worker not initialized");
-	let u = performance.now(), { phonemeIds: d, phonemes: f } = y(a, r.espeak.voice), m = x(l.speakerId, r), { audio: h, durations: g } = await b(t, d, l, m);
+	let u = performance.now(), { phonemeIds: d, phonemes: f } = S(a, r.espeak.voice), p = w(c.speakerId, r), { audio: h, durations: g } = await C(t, d, c, p);
 	if (!g || g.length === 0) throw Error("Durations missing from inference results. Ensure the model is patched to export durations tensor.");
 	let _ = 256 / r.audio.sample_rate * 1e3;
 	for (let e = 0; e < g.length; e++) g[e] *= _;
-	let v = l.volume ?? 1;
+	let v = c.volume ?? 1;
 	if (v !== 1) for (let e = 0; e < h.length; e++) h[e] *= v;
-	let C = h.length / r.audio.sample_rate * 1e3, T = performance.now() - u, E = {
+	let y = h.length / r.audio.sample_rate * 1e3, b = performance.now() - u, x = {
 		requestId: s,
 		audioData: h,
 		sampleRate: r.audio.sample_rate,
-		durationMs: C,
+		durationMs: y,
 		metadata: {
-			generationTimeMs: T,
+			generationTimeMs: b,
 			modelId: o,
-			speakerId: m,
+			speakerId: p,
 			phonemeIds: d,
 			phonemes: f,
 			durations: g || void 0,
-			totalAudioDurationMs: C,
+			totalAudioDurationMs: y,
 			sampleRate: r.audio.sample_rate,
 			hopSize: 256
 		}
-	}, D;
-	if (c) try {
-		D = await c(E);
+	}, E;
+	if (l) try {
+		E = await l(x);
 	} catch (e) {
 		let t = e instanceof Error ? e : Error(String(e));
-		throw p(`Callback execution failed: ${t.message}`), Error(`User callback '${o}' failed: ${t.message}`);
+		throw m(`Callback execution failed: ${t.message}`), Error(`User callback '${o}' failed: ${t.message}`);
 	}
-	let O = [h.buffer, ...w(D)];
-	S({
+	let O = [h.buffer, ...D(E)];
+	T({
 		type: "success",
 		instanceId: i,
 		requestId: s,
-		result: E,
-		callbackResult: D
+		result: x,
+		callbackResult: E
 	}, { transfer: O });
 }
-var _ = null;
-async function v(e) {
+var b = null;
+async function x(e) {
 	let t = e.piperJs, r = await fetch(t);
 	if (!r.ok) throw Error(`Failed to fetch phonemizer glue: ${r.statusText}`);
 	let i = await r.text();
@@ -165,22 +176,22 @@ async function v(e) {
 		locateFile: (t) => t.endsWith(".wasm") ? e.piperWasm : t.endsWith(".data") ? e.piperData : t,
 		print: (e) => {
 			try {
-				_ = JSON.parse(e);
+				b = JSON.parse(e);
 			} catch {}
 		}
 	});
 }
-function y(e, t) {
+function S(e, t) {
 	let r = JSON.stringify([{ text: e.trim() }]);
-	if (_ = null, n?.callMain([
+	if (b = null, n?.callMain([
 		"-l",
 		t,
 		"--input",
 		r,
 		"--espeak_data",
 		"/espeak-ng-data"
-	]), _ && _.phoneme_ids !== void 0) {
-		let e = _;
+	]), b && b.phoneme_ids !== void 0) {
+		let e = b;
 		return {
 			phonemeIds: e.phoneme_ids,
 			phonemes: e.phonemes || []
@@ -188,7 +199,7 @@ function y(e, t) {
 	}
 	throw Error("Phonemization failed");
 }
-async function b(t, n, i, a) {
+async function C(t, n, i, a) {
 	let { noise_scale: o, length_scale: s, noise_w: c } = r.inference, l = {
 		input: new t.Tensor("int64", BigInt64Array.from(n.map(BigInt)), [1, n.length]),
 		input_lengths: new t.Tensor("int64", BigInt64Array.from([BigInt(n.length)])),
@@ -205,16 +216,16 @@ async function b(t, n, i, a) {
 		durations: u.durations ? u.durations.data : null
 	};
 }
-function x(e, t) {
+function w(e, t) {
 	let n = Object.keys(t.speaker_id_map).length;
 	if (n === 0) return 0;
 	let r = e ?? s;
-	return r < 0 || r >= n ? (f(`speakerId ${r} out of range (0-${n - 1}), falling back to 0`), 0) : r;
+	return r < 0 || r >= n ? (p(`speakerId ${r} out of range (0-${n - 1}), falling back to 0`), 0) : r;
 }
-function S(e, t) {
+function T(e, t) {
 	self.postMessage(e, t);
 }
-function C(e) {
+function E(e) {
 	if (typeof e == "string") return e;
 	let t = e instanceof Error ? e.message : String(e);
 	if (e && typeof e == "object" && "originalRequest" in e) try {
@@ -227,7 +238,7 @@ function C(e) {
 }
 //#endregion
 //#region src/worker/index.ts
-function w(e) {
+function D(e) {
 	let t = [];
 	function n(e) {
 		if (e) {
@@ -239,4 +250,4 @@ function w(e) {
 	return n(e), t;
 }
 //#endregion
-export { w as collectTransferables, g as processPiperSynthesis, m as setupPiperWorker };
+export { D as collectTransferables, y as processPiperSynthesis, _ as setupPiperWorker };

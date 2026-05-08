@@ -15,4 +15,7 @@ yarn-error.log*
 
 # Plan/Artifacts (Consumer Specific)
 plans/
+docs/plans/
 .gemini/
+.agent/
+HANDOVER.md

@@ -19,3 +19,4 @@ docs/plans/
 .gemini/
 .agent/
 HANDOVER.md
+*.test.ts

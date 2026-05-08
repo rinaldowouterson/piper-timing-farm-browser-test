@@ -369,7 +369,7 @@ function createResultCard(text: string, requestId: string): HTMLElement {
   return row;
 }
 
-function markRowDone(row: HTMLElement, requestId: string, result?: AudioSynthesisResult & { callbackResult?: any }) {
+function markRowDone(row: HTMLElement, _requestId: string, result?: AudioSynthesisResult & { callbackResult?: any }) {
   state.totalDone++;
   syncUI();
 

@@ -16,7 +16,7 @@ var t = class extends Error {
 	constructor(e, t, n, r) {
 		super(r), this.statusCode = t, this.requestId = n, this.url = e;
 	}
-}, n = class extends Error {};
+}, n = class extends Error { };
 function r(e) {
 	if (!e.startsWith("hf_")) throw TypeError("Your access token must start with 'hf_'");
 }
@@ -58,7 +58,7 @@ function a(e) {
 		name: e
 	};
 }
-typeof window < "u" && window.document, typeof self == "object" && self.constructor && self.constructor.name, new Promise((e) => {});
+typeof window < "u" && window.document, typeof self == "object" && self.constructor && self.constructor.name, new Promise((e) => { });
 var o = class extends Blob {
 	static async create(e, t) {
 		let n = t?.fetch ?? fetch, r = await n(e, {
@@ -98,10 +98,12 @@ var o = class extends Blob {
 	}
 	fetchRange() {
 		let t = this.fetch;
-		return this.full ? t(this.url, { ...this.accessToken && { headers: { Authorization: `Bearer ${this.accessToken}` } } }).then((t) => t.ok ? t : e(t)) : t(this.url, { headers: {
-			Range: `bytes=${this.start}-${this.end - 1}`,
-			...this.accessToken && { Authorization: `Bearer ${this.accessToken}` }
-		} }).then((t) => t.ok ? t : e(t));
+		return this.full ? t(this.url, { ...this.accessToken && { headers: { Authorization: `Bearer ${this.accessToken}` } } }).then((t) => t.ok ? t : e(t)) : t(this.url, {
+			headers: {
+				Range: `bytes=${this.start}-${this.end - 1}`,
+				...this.accessToken && { Authorization: `Bearer ${this.accessToken}` }
+			}
+		}).then((t) => t.ok ? t : e(t));
 	}
 };
 function s(e, t) {
@@ -151,13 +153,13 @@ function te(e) {
 	if (i) return c(e, t);
 	t++;
 	let s = 0;
-	for (;;) {
+	for (; ;) {
 		let n = l(e, t);
 		if (t += 4, n & v ? (n &= ~v, s += n) : n > 0 && (s += o), n === 0) return s;
 		r && (t += 4), t += n;
 	}
 }
-function ne(e, t, n, r, i) {
+function w(e, t, n, r, i) {
 	let a, o, s, c, l, d = t.copyWithin !== void 0 && t.fill !== void 0;
 	for (s = n + r; n < s;) {
 		let r = e[n++], f = r >> 4;
@@ -173,26 +175,26 @@ function ne(e, t, n, r, i) {
 	}
 	return i;
 }
-function w(e, t) {
+function T(e, t) {
 	let n, r, i, a, o = 0, s = 0;
 	if (l(e, o) !== f) throw Error("invalid magic number");
 	if (o += 4, a = e[o++], (a & _) !== g) throw Error("incompatible descriptor version");
 	if (n = (a & h) !== 0, r = (a & p) !== 0, i = (a & m) !== 0, x[e[o++] >> y & b] === void 0) throw Error("invalid block size");
-	for (i && (o += 8), o++;;) {
+	for (i && (o += 8), o++; ;) {
 		var c = l(e, o);
 		if (o += 4, c === 0) break;
 		if (n && (o += 4), (c & v) !== 0) {
 			c &= ~v;
 			for (let n = 0; n < c; n++) t[s++] = e[o++];
-		} else s = ne(e, t, o, c, s), o += c;
+		} else s = w(e, t, o, c, s), o += c;
 	}
 	return r && (o += 4), s;
 }
-function T(e, t) {
+function E(e, t) {
 	let n, r;
-	return t === void 0 && (t = te(e)), n = S(t), r = w(e, n), r !== t && (n = C(n, 0, r)), n;
+	return t === void 0 && (t = te(e)), n = S(t), r = T(e, n), r !== t && (n = C(n, 0, r)), n;
 }
-var E = class {
+var D = class {
 	ranges = [];
 	add(e, t) {
 		if (t <= e) throw TypeError("End must be greater than start");
@@ -272,11 +274,11 @@ var E = class {
 	getAllRanges() {
 		return [...this.ranges];
 	}
-}, D = 6e4, re = 1e3, ie = {
+}, O = 6e4, ne = 1e3, re = {
 	0: "None",
 	1: "LZ4",
 	2: "ByteGroupingLZ4"
-}, O = 8, k = class extends Blob {
+}, k = 8, A = class extends Blob {
 	fetch;
 	accessToken;
 	refreshUrl;
@@ -289,11 +291,11 @@ var E = class {
 	listener;
 	constructor(e) {
 		if (super([]), this.fetch = e.fetch ?? fetch.bind(globalThis), this.accessToken = i(e), this.refreshUrl = e.refreshUrl, this.end = e.size, this.reconstructionUrl = e.reconstructionUrl, this.hash = e.hash, this.listener = e.listener, this.internalLogging = e.internalLogging ?? !1, e.readToken) {
-			let t = M({
+			let t = N({
 				refreshUrl: this.refreshUrl,
 				initialAccessToken: this.accessToken
 			});
-			j.set(t, {
+			M.set(t, {
 				accessToken: e.readToken.accessToken,
 				expiresAt: /* @__PURE__ */ new Date(e.readToken.exp * 1e3),
 				casUrl: e.readToken.casUrl
@@ -304,7 +306,7 @@ var E = class {
 		return this.end - this.start;
 	}
 	#e() {
-		let e = new k({
+		let e = new A({
 			fetch: this.fetch,
 			hash: this.hash,
 			refreshUrl: this.refreshUrl,
@@ -320,26 +322,30 @@ var E = class {
 	#t;
 	#n() {
 		return this.#t ||= (async () => {
-			let t = await P(this.accessToken, this.fetch, this.refreshUrl), n = await this.fetch(this.reconstructionUrl ?? `${t.casUrl}/v1/reconstructions/${this.hash}`, { headers: {
-				Authorization: `Bearer ${t.accessToken}`,
-				Range: `bytes=${this.start}-${this.end - 1}`
-			} });
+			let t = await F(this.accessToken, this.fetch, this.refreshUrl), n = await this.fetch(this.reconstructionUrl ?? `${t.casUrl}/v1/reconstructions/${this.hash}`, {
+				headers: {
+					Authorization: `Bearer ${t.accessToken}`,
+					Range: `bytes=${this.start}-${this.end - 1}`
+				}
+			});
 			if (!n.ok) throw await e(n);
 			return this.reconstructionInfo = await n.json(), this.reconstructionInfo;
 		})().finally(() => this.#t = void 0), this.#t;
 	}
 	async #r() {
-		if (this.size === 0) return new ReadableStream({ start(e) {
-			e.close();
-		} });
+		if (this.size === 0) return new ReadableStream({
+			start(e) {
+				e.close();
+			}
+		});
 		this.reconstructionInfo || await this.#n();
 		let t = /* @__PURE__ */ new Map();
 		if (!this.reconstructionInfo) throw Error("Failed to load reconstruction info");
 		for (let e of this.reconstructionInfo.terms) {
 			let n = t.get(e.hash);
-			n || (n = new E(), t.set(e.hash, n)), n.add(e.range.start, e.range.end);
+			n || (n = new D(), t.set(e.hash, n)), n.add(e.range.start, e.range.end);
 		}
-		let n = this.listener, r = this.internalLogging ? (...e) => console.log(...e) : () => {};
+		let n = this.listener, r = this.internalLogging ? (...e) => console.log(...e) : () => { };
 		async function* i(i, a, o, c) {
 			let l = 0, u = i.offset_into_first_range;
 			for (let d of i.terms) {
@@ -387,20 +393,20 @@ var E = class {
 							y = e.value;
 							continue fetchData;
 						}
-						let t = new DataView(e.value.buffer, e.value.byteOffset, O), i = {
+						let t = new DataView(e.value.buffer, e.value.byteOffset, k), i = {
 							version: t.getUint8(0),
 							compressed_length: t.getUint8(1) | t.getUint8(2) << 8 | t.getUint8(3) << 16,
 							compression_scheme: t.getUint8(4),
 							uncompressed_length: t.getUint8(5) | t.getUint8(6) << 8 | t.getUint8(7) << 16
 						};
 						if (r("chunk header", i, "to skip", u), i.version !== 0) throw Error(`Unsupported chunk version ${i.version}`);
-						if (i.compression_scheme !== 0 && i.compression_scheme !== 1 && i.compression_scheme !== 2) throw Error(`Unsupported compression scheme ${ie[i.compression_scheme] ?? i.compression_scheme}`);
-						if (e.value.byteLength < i.compressed_length + O) {
+						if (i.compression_scheme !== 0 && i.compression_scheme !== 1 && i.compression_scheme !== 2) throw Error(`Unsupported compression scheme ${re[i.compression_scheme] ?? i.compression_scheme}`);
+						if (e.value.byteLength < i.compressed_length + k) {
 							y = e.value;
 							continue fetchData;
 						}
-						e.value = e.value.slice(O);
-						let a = i.compression_scheme === 1 ? T(e.value.slice(0, i.compressed_length), i.uncompressed_length) : i.compression_scheme === 2 ? N(T(e.value.slice(0, i.compressed_length), i.uncompressed_length)) : e.value.slice(0, i.compressed_length), s = v.find((e) => _ >= e.start && _ < e.end), c = _ >= d.range.start && _ < d.range.end, f = c ? 2 : 1, p = !1;
+						e.value = e.value.slice(k);
+						let a = i.compression_scheme === 1 ? E(e.value.slice(0, i.compressed_length), i.uncompressed_length) : i.compression_scheme === 2 ? P(E(e.value.slice(0, i.compressed_length), i.uncompressed_length)) : e.value.slice(0, i.compressed_length), s = v.find((e) => _ >= e.start && _ < e.end), c = _ >= d.range.start && _ < d.range.end, f = c ? 2 : 1, p = !1;
 						if (s && s.refCount >= f && (s.data ??= [], s.data.push(a), p = !0), c) {
 							if (u) {
 								let e = Math.min(u, a.byteLength);
@@ -446,11 +452,11 @@ var E = class {
 		let e = new TransformStream();
 		return this.#r().then((t) => t.pipeThrough(e)).catch((t) => e.writable.abort(t.message)), e.readable;
 	}
-}, A = /* @__PURE__ */ new Map(), j = /* @__PURE__ */ new Map();
-function M(e) {
+}, j = /* @__PURE__ */ new Map(), M = /* @__PURE__ */ new Map();
+function N(e) {
 	return JSON.stringify([e.refreshUrl, e.initialAccessToken]);
 }
-function N(e) {
+function P(e) {
 	let t = Math.floor(e.byteLength / 4), n = e.byteLength % 4, r = t + +(n >= 1), i = r + t + +(n >= 2), a = i + t + +(n == 3), o = new Uint8Array(e.byteLength);
 	for (let t = 0, n = 0; t < e.byteLength; t += 4, n++) o[t] = e[n];
 	for (let t = 1, n = r; t < e.byteLength; t += 4, n++) o[t] = e[n];
@@ -458,16 +464,16 @@ function N(e) {
 	for (let t = 3, n = a; t < e.byteLength; t += 4, n++) o[t] = e[n];
 	return o;
 }
-async function P(e, t, n) {
-	let r = M({
+async function F(e, t, n) {
+	let r = N({
 		refreshUrl: n,
 		initialAccessToken: e
-	}), i = j.get(r);
-	if (i && i.expiresAt > new Date(Date.now() + D)) return {
+	}), i = M.get(r);
+	if (i && i.expiresAt > new Date(Date.now() + O)) return {
 		accessToken: i.accessToken,
 		casUrl: i.casUrl
 	};
-	let a = A.get(r);
+	let a = j.get(r);
 	if (a) return a;
 	let o = (async () => {
 		let i = await t(n, { headers: { ...e ? { Authorization: `Bearer ${e}` } : {} } });
@@ -477,19 +483,19 @@ async function P(e, t, n) {
 			expiresAt: /* @__PURE__ */ new Date(a.exp * 1e3),
 			casUrl: a.casUrl
 		};
-		A.delete(r);
-		for (let [e, t] of j.entries()) if (t.expiresAt < new Date(Date.now() + D)) j.delete(e);
+		j.delete(r);
+		for (let [e, t] of M.entries()) if (t.expiresAt < new Date(Date.now() + O)) M.delete(e);
 		else break;
-		if (j.size >= re) {
-			let e = j.keys().next().value;
-			e && j.delete(e);
+		if (M.size >= ne) {
+			let e = M.keys().next().value;
+			e && M.delete(e);
 		}
-		return j.set(r, o), {
+		return M.set(r, o), {
 			accessToken: a.accessToken,
 			casUrl: a.casUrl
 		};
 	})();
-	return A.set(r, o), o;
+	return j.set(r, o), o;
 }
 "ff".repeat(32), new Uint8Array([
 	72,
@@ -525,10 +531,10 @@ async function P(e, t, n) {
 	74,
 	169
 ]);
-function F(e) {
+function I(e) {
 	return Object.fromEntries([...e.matchAll(/<(https?:[/][/][^>]+)>;\s+rel="([^"]+)"/g)].map(([, e, t]) => [t, e]));
 }
-async function I(t) {
+async function L(t) {
 	let r = i(t), o = a(t.repo), s = t.hubUrl ?? "https://huggingface.co", c = o.type === "bucket" ? void 0 : t.revision ?? "main", l = `${s}/${o.type === "model" ? "" : `${o.type}s/`}${o.name}/${t.raw ? "raw" : "resolve"}${c ? `/${encodeURIComponent(c)}` : ""}/${t.path}` + (t.noContentDisposition ? "?noContentDisposition=1" : ""), u = await (t.fetch ?? fetch)(l, {
 		method: "GET",
 		headers: {
@@ -542,7 +548,7 @@ async function I(t) {
 	let d, f;
 	if (u.headers.get("Content-Type")?.includes("application/vnd.xet-fileinfo+json")) {
 		if (d = parseInt(u.headers.get("X-Linked-Size") ?? "invalid"), isNaN(d)) throw new n("Invalid file size received in X-Linked-Size header");
-		let e = u.headers.get("X-Xet-Hash"), t = F(u.headers.get("Link") ?? ""), r = (() => {
+		let e = u.headers.get("X-Xet-Hash"), t = I(u.headers.get("Link") ?? ""), r = (() => {
 			try {
 				return new URL(t["xet-reconstruction-info"]);
 			} catch {
@@ -578,8 +584,8 @@ async function I(t) {
 		url: u.url && (new URL(u.url).origin === new URL(s).origin || u.headers.get("X-Cache")?.endsWith(" cloudfront")) ? u.url : l
 	};
 }
-async function ae(e) {
-	let t = i(e), n = e.downloadInfo ?? await I({
+async function ie(e) {
+	let t = i(e), n = e.downloadInfo ?? await L({
 		accessToken: t,
 		repo: e.repo,
 		path: e.path,
@@ -588,7 +594,7 @@ async function ae(e) {
 		fetch: e.fetch,
 		raw: e.raw
 	});
-	return n ? n.xet && e.xet !== !1 ? new k({
+	return n ? n.xet && e.xet !== !1 ? new A({
 		refreshUrl: n.xet.refreshUrl.href,
 		reconstructionUrl: n.xet.reconstructionUrl.href,
 		fetch: e.fetch,
@@ -599,15 +605,15 @@ async function ae(e) {
 }
 //#endregion
 //#region src/control-asset-sw.ts
-var L = self;
-async function oe(e) {
+var R = self;
+async function ae(e) {
 	let t = await crypto.subtle.digest("SHA-256", e);
 	return Array.from(new Uint8Array(t)).map((e) => e.toString(16).padStart(2, "0")).join("");
 }
-async function R(e, t) {
-	return (await oe(e)).toLowerCase() === t.toLowerCase();
+async function z(e, t) {
+	return (await ae(e)).toLowerCase() === t.toLowerCase();
 }
-var z = "infra", B = "voices", V = {
+var B = "infra", V = "voices", H = {
 	"ort-wasm-simd-threaded.wasm": "be0e129949062ad50290ef94683fac8be5bb6156f709e030b7a5f1661a2f6c17",
 	"ort.wasm.min.mjs": "d5a6d7bc8ee587648fb3742dde8c0094d17cbd3822a68bbec8ddfcd4f2adb88e",
 	"ort-wasm-simd-threaded.mjs": "5687566b1bc1c8cf628d76c2ddb16b2a3b81a7997273d4666564880495088e57",
@@ -617,42 +623,42 @@ var z = "infra", B = "voices", V = {
 	"process-piper-synthesis.worker.js": "64c3748cd696f83d73e16a1e191c9a45ce1c483cbce97742a68fc7631ab97a2e",
 	"piper-model-cards.json": "270aa371f9f528df0363f012b8d878267bf41531ff0a6008fb26e552dceec654",
 	"piper-callback.js": "c769d1f2b9d5ee7f0cb97858d68a21c2e1fc86312981d71f098560060e13f81b"
-}, H = {
+}, U = {
 	"ort-wasm-simd-threaded.wasm": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.wasm",
 	"ort.wasm.min.mjs": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort.wasm.min.mjs",
 	"ort-wasm-simd-threaded.mjs": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.mjs",
 	"piper_phonemize.data": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.data",
 	"piper_phonemize.js": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.js",
 	"piper_phonemize.wasm": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.wasm"
-}, U = /* @__PURE__ */ new Map(), W = /* @__PURE__ */ new Map(), G = !1, K = null;
-async function se() {
-	if (!G) return K || (K = (async () => {
-		let e = await J("piper-model-cards.json");
+}, W = /* @__PURE__ */ new Map(), G = /* @__PURE__ */ new Map(), K = !1, q = null;
+async function oe() {
+	if (!K) return q || (q = (async () => {
+		let e = await Y("piper-model-cards.json");
 		if (!e.ok) throw Error(`[piper-gate] Index resolution failed: ${e.status} ${await e.text()}`);
 		let t = await e.arrayBuffer(), n = JSON.parse(new TextDecoder().decode(t));
-		for (let e of n) U.set(e.id, {
+		for (let e of n) W.set(e.id, {
 			onnx: e.modelSha256,
 			config: e.configSha256
-		}), W.set(e.id, {
+		}), G.set(e.id, {
 			onnx: e.modelUrl,
 			config: e.configUrl
 		});
-		G = !0, console.log(`[piper-gate] Model cards verified and registries populated: ${n.length} models.`);
-	})(), K.catch(() => {
-		K = null;
-	}), K);
+		K = !0, console.log(`[piper-gate] Model cards verified and registries populated: ${n.length} models.`);
+	})(), q.catch(() => {
+		q = null;
+	}), q);
 }
-var ce = {
+var se = {
 	".wasm": "application/wasm",
 	".mjs": "text/javascript",
 	".js": "text/javascript",
 	".data": "application/octet-stream",
 	".onnx": "application/octet-stream",
 	".json": "application/json"
-}, q = new BroadcastChannel("piper-download-progress");
-function le(e, t) {
+}, J = new BroadcastChannel("piper-download-progress");
+function ce(e, t) {
 	let n = t instanceof Error;
-	q.postMessage({
+	J.postMessage({
 		type: "error",
 		filename: e,
 		message: n ? t.message : String(t),
@@ -660,100 +666,88 @@ function le(e, t) {
 		code: n ? t.name : "UNKNOWN_ERROR"
 	});
 }
-function ue(e) {
-	return !!(e in V || e.endsWith(".onnx") || e.endsWith(".onnx.json"));
+function le(e) {
+	return !!(e in H || e.endsWith(".onnx") || e.endsWith(".onnx.json"));
 }
-L.addEventListener("install", () => {
-	L.skipWaiting();
-}), L.addEventListener("activate", (e) => {
-	e.waitUntil(L.clients.claim());
-}), L.addEventListener("fetch", (e) => {
+R.addEventListener("install", () => {
+	R.skipWaiting();
+}), R.addEventListener("activate", (e) => {
+	e.waitUntil(R.clients.claim());
+}), R.addEventListener("fetch", (e) => {
 	let t = new URL(e.request.url);
-	if (t.origin === L.location.origin && !t.pathname.startsWith("/piper-gate/")) {
+	if (t.origin === R.location.origin && !t.pathname.startsWith("/piper-gate/")) {
 		let e = t.pathname.split("/").pop() || "";
-		ue(e) && console.warn(`[piper-gate] [Path Deviation] Detected request for Piper asset '${e}' at non-gateway path: ${t.pathname}. This request bypasses Service Worker integrity verification and OPFS caching. Please update the requester to use: /piper-gate/.../${e}`);
+		le(e) && console.warn(`[piper-gate] [Path Deviation] Detected request for Piper asset '${e}' at non-gateway path: ${t.pathname}. This request bypasses Service Worker integrity verification and OPFS caching. Please update the requester to use: /piper-gate/.../${e}`);
 	}
-	if (t.origin !== L.location.origin || !t.pathname.startsWith("/piper-gate/")) return;
+	if (t.origin !== R.location.origin || !t.pathname.startsWith("/piper-gate/")) return;
 	let n = t.pathname.slice(12);
 	if (n) {
 		if (e.request.method === "DELETE") {
-			e.respondWith(me(n));
+			e.respondWith(pe(n));
 			return;
 		}
-		e.respondWith(de(n, e.request));
+		e.respondWith(ue(n, e.request));
 	}
 });
-async function de(e, t) {
+async function ue(e, t) {
 	try {
 		let n = e.split("/");
 		if (n.length !== 2) return new Response(`[piper-gate] Invalid path format: ${e}`, { status: 400 });
 		let [r, i] = n;
-		return r === "infra" ? await J(i) : r === "voices" ? await fe(i, t) : new Response(`[piper-gate] Unknown directory: ${r}`, { status: 400 });
+		return r === "infra" ? await Y(i) : r === "voices" ? await de(i, t) : new Response(`[piper-gate] Unknown directory: ${r}`, { status: 400 });
 	} catch (t) {
-		return le(e, t), new Response(t instanceof Error ? t.message : String(t), {
+		return ce(e, t), new Response(t instanceof Error ? t.message : String(t), {
 			status: 500,
 			statusText: "Piper Gateway Resolver Error"
 		});
 	}
 }
-async function J(e) {
-	let t = V[e];
+async function Y(e) {
+	let t = H[e];
 	if (!t) return new Response(`[piper-gate] Unknown infra asset: ${e}`, { status: 404 });
-	let n = await X(z, e);
+	let n = await X(B, e);
 	if (n) {
-		if (await R(n, t)) return console.log(`[piper-gate] [Cache Hit] '${e}' verified from OPFS.`), $(n, { filename: e });
-		console.log(`[piper-gate] [Stale Cache] OPFS integrity mismatch for '${e}'. Deleting stale entry to trigger re-fetch.`), await Q(z, e);
+		if (await z(n, t)) return console.log(`[piper-gate] [Cache Hit] '${e}' verified from OPFS.`), $(n, { filename: e });
+		console.log(`[piper-gate] [Stale Cache] OPFS integrity mismatch for '${e}'. Deleting stale entry to trigger re-fetch.`), await Q(B, e);
 	}
 	try {
 		let n = await fetch(`/piper-gate/infra/${e}`);
 		if (n.ok) {
 			let r = await n.arrayBuffer();
-			if (await R(r, t)) return await Z(z, e, r), console.log(`[piper-gate] [Cache Restored] '${e}' successfully re-downloaded, verified, and persisted to OPFS.`), $(r, { filename: e });
+			if (await z(r, t)) return await Z(B, e, r), console.log(`[piper-gate] [Cache Restored] '${e}' successfully re-downloaded, verified, and persisted to OPFS.`), $(r, { filename: e });
 			console.error(`[piper-gate] Local infra asset integrity mismatch: ${e}`);
 		}
 	} catch {
 		console.log(`[piper-gate] Local file '${e}' unavailable. Fetching from CDN.`);
 	}
-	let r = H[e];
+	let r = U[e];
 	if (!r) return new Response(`[piper-gate] No CDN URL for infra asset: ${e}`, { status: 404 });
 	try {
 		let n = await fetch(r);
 		if (!n.ok) return new Response(`[piper-gate] CDN returned ${n.status} for: ${e}`, { status: 502 });
 		let i = await n.arrayBuffer();
-		return await R(i, t) ? (await Z(z, e, i), console.log(`[piper-gate] Infra asset from CDN verified: ${e}`), $(i, { filename: e })) : new Response(`[piper-gate] CDN asset integrity mismatch: ${e}`, { status: 403 });
+		return await z(i, t) ? (await Z(B, e, i), console.log(`[piper-gate] Infra asset from CDN verified: ${e}`), $(i, { filename: e })) : new Response(`[piper-gate] CDN asset integrity mismatch: ${e}`, { status: 403 });
 	} catch (t) {
 		return console.error(`[piper-gate] CDN fetch failed for ${e}:`, t), new Response(`[piper-gate] CDN unreachable for: ${e}`, { status: 502 });
 	}
 }
-async function fe(e, t) {
+async function de(e, t) {
 	let n = e.endsWith(".onnx.json"), r = n ? e.slice(0, -10) : e.slice(0, -5), i = n ? "config" : "onnx", a = t.headers.get("x-piper-cache-download") === "true";
-	await se();
-	let o = null, s = U.get(r);
-	if (s && (o = i === "onnx" ? s.onnx : s.config), !o) {
-		let e = t.headers.get(`x-piper-sha256-${i}`);
-		e && (o = e);
-	}
-	if (!o) {
-		let e = t.headers.get(`x-piper-url-${i}`);
-		e && (o = await pe(e));
-	}
-	if (!o) return console.error(`[piper-gate] No SHA-256 available for voice: ${e}`), new Response(`[piper-gate] SHA-256 required for voice asset: ${e}. Provide via x-piper-sha256-${i} header or use a registered model.`, { status: 403 });
-	let c = await X(B, e);
+	await oe();
+	let o = W.get(r), s = o ? i === "onnx" ? o.onnx : o.config : null;
+	if (!s) return console.error(`[piper-gate] No SHA-256 available for voice: ${e}`), new Response(`[piper-gate] SHA-256 required for voice asset: ${e}. Model must be present in piper-model-cards.json.`, { status: 403 });
+	let c = await X(V, e);
 	if (c) {
-		if (await R(c, o)) return console.log(`[piper-gate] [Cache Hit] Voice asset verified from OPFS: ${e}`), $(c, { filename: e });
-		console.log(`[piper-gate] [Stale Cache] Voice integrity mismatch for '${e}'. Purging stale entry.`), await Q(B, e);
+		if (await z(c, s)) return console.log(`[piper-gate] [Cache Hit] Voice asset verified from OPFS: ${e}`), $(c, { filename: e });
+		console.log(`[piper-gate] [Stale Cache] Voice integrity mismatch for '${e}'. Purging stale entry.`), await Q(V, e);
 	}
-	let l = null, u = W.get(r);
-	if (u && (l = i === "onnx" ? u.onnx : u.config), !l) {
-		let e = t.headers.get(`x-piper-url-${i}`);
-		e && (l = e);
-	}
-	if (!l) return new Response(`[piper-gate] No source URL for voice: ${e}`, { status: 404 });
+	let l = G.get(r), u = l ? i === "onnx" ? l.onnx : l.config : null;
+	if (!u) return new Response(`[piper-gate] No source URL for voice: ${e}`, { status: 404 });
 	try {
-		let n = Y(l), r, i = 0;
+		let n = fe(u), r, i = 0;
 		if (n) {
 			console.log(`[piper-gate] Using HF Hub download for: ${e}`);
-			let a = await ae({
+			let a = await ie({
 				repo: n.repo,
 				revision: n.revision,
 				path: n.path,
@@ -763,26 +757,26 @@ async function fe(e, t) {
 				})
 			});
 			if (!a) return new Response(`[piper-gate] HF Hub failed to resolve: ${e}`, { status: 502 });
-			i = a.size, q.postMessage({
+			i = a.size, J.postMessage({
 				type: "progress",
 				filename: e,
 				downloaded: i,
 				total: i
 			}), r = await a.arrayBuffer();
 		} else {
-			let n = await fetch(l, { signal: t.signal });
+			let n = await fetch(u, { signal: t.signal });
 			if (!n.ok) return new Response(`[piper-gate] Source returned ${n.status} for: ${e}`, { status: 502 });
 			i = Number(n.headers.get("Content-Length")) || 0;
 			let a = n.body?.getReader();
 			if (!a) return new Response(`[piper-gate] No response body for: ${e}`, { status: 502 });
 			let o = [], s = 0, c = 0;
 			try {
-				for (;;) {
+				for (; ;) {
 					let { done: t, value: n } = await a.read();
 					if (t) break;
 					o.push(n), s += n.length;
 					let r = Date.now();
-					r - c > 100 && (q.postMessage({
+					r - c > 100 && (J.postMessage({
 						type: "progress",
 						filename: e,
 						downloaded: s,
@@ -794,31 +788,21 @@ async function fe(e, t) {
 			}
 			r = await new Blob(o).arrayBuffer();
 		}
-		return await R(r, o) ? (await Z(B, e, r), console.log(`[piper-gate] [Cache Restored] Voice asset '${e}' downloaded and verified.`), a ? $(null, {
+		return await z(r, s) ? (await Z(V, e, r), console.log(`[piper-gate] [Cache Restored] Voice asset '${e}' downloaded and verified.`), a ? $(null, {
 			status: 204,
-			extraHeaders: { "x-piper-sha256": o }
+			extraHeaders: { "x-piper-sha256": s }
 		}) : $(r, { filename: e })) : (console.error(`[piper-gate] Voice asset integrity mismatch: ${e}`), new Response(`[piper-gate] Integrity mismatch for: ${e}`, { status: 403 }));
 	} catch (t) {
 		return t instanceof Error && t.name === "AbortError" ? new Response(`[piper-gate] Download aborted: ${e}`, { status: 499 }) : (console.error(`[piper-gate] Download failed for ${e}:`, t), new Response(`[piper-gate] Download failed for: ${e}`, { status: 502 }));
 	}
 }
-function Y(e) {
+function fe(e) {
 	let t = e.match(/^https:\/\/huggingface\.co\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/);
 	return t ? {
 		repo: t[1],
 		revision: t[2],
 		path: t[3]
 	} : null;
-}
-async function pe(e) {
-	let t = Y(e);
-	if (!t) return null;
-	try {
-		let e = t.path.split("/"), n = e.pop() || "", r = e.join("/"), i = `https://huggingface.co/api/models/${t.repo}/tree/${t.revision}/${r}`, a = await fetch(i);
-		return a.ok && (await a.json()).find((e) => e.path === t.path || e.path.endsWith(n))?.lfs?.oid || null;
-	} catch {
-		return null;
-	}
 }
 async function X(e, t) {
 	try {
@@ -838,9 +822,9 @@ async function Z(e, t, n) {
 async function Q(e, t) {
 	try {
 		await (await (await navigator.storage.getDirectory()).getDirectoryHandle(e, { create: !1 })).removeEntry(t);
-	} catch {}
+	} catch { }
 }
-async function me(e) {
+async function pe(e) {
 	try {
 		let t = await navigator.storage.getDirectory();
 		if (e === "voices/" || e === "voices") {
@@ -884,7 +868,7 @@ function $(e, t = {}) {
 		"Cross-Origin-Resource-Policy": "same-origin",
 		...i
 	};
-	return n && (a["Content-Type"] = ce[n.substring(n.lastIndexOf("."))] ?? "application/octet-stream"), new Response(e, {
+	return n && (a["Content-Type"] = se[n.substring(n.lastIndexOf("."))] ?? "application/octet-stream"), new Response(e, {
 		status: r,
 		headers: a
 	});

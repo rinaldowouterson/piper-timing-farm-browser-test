@@ -578,7 +578,9 @@ async function runScenario(scenario: TestScenario | undefined) {
     const result = await scenario.execute(provider!);
     const duration = Date.now() - startTime;
     if (result.success) {
-      logger?.log({ category: 'TEST', level: 'SUCCESS', event: 'PASS', duration, data: { scenario: scenario.name } });
+      const logData: any = { scenario: scenario.name };
+      if (result.message) logData.message = result.message;
+      logger?.log({ category: 'TEST', level: 'SUCCESS', event: 'PASS', duration, data: logData });
     } else {
       const isCancellation = result.error === 'Synthesis cancelled before completion' || result.error === 'Synthesis cancelled';
       logger?.log({ 

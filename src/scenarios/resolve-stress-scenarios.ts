@@ -35,10 +35,20 @@ export const stressScenarios: TestScenario[] = [
     description: "Verify stability under heavy payload (100 parallel requests).",
     features: ["provider.synthesize", "multi-threaded processing"],
     execute: async (provider) => {
+      const start = performance.now();
       const longText = "The quick brown fox jumps over the lazy dog while the system orchestrates multiple threads for high-performance synthesis and memory management.";
       const tasks = Array.from({ length: 100 }, (_, i) => provider.synthesize(`${longText} [Sequence ${i}]`));
-      await Promise.all(tasks);
-      return { success: true, data: undefined, message: "Handled 100 parallel requests." };
+      const results = await Promise.all(tasks);
+      
+      const totalAudio = results.reduce((sum, res) => sum + res.durationMs, 0);
+      const wallTime = performance.now() - start;
+      const totalRTF = totalAudio / wallTime;
+
+      return { 
+        success: true, 
+        data: undefined, 
+        message: `Handled 100 parallel requests. Total Audio: ${(totalAudio/1000).toFixed(1)}s, Total Wall Time: ${(wallTime/1000).toFixed(1)}s -> Batch RTF: ${totalRTF.toFixed(2)}x` 
+      };
     }
   },
   {

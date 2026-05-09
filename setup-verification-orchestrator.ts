@@ -80,7 +80,7 @@ let verifier: FifoVerifier | null = null;
 const activeUIRows = new Set<string>();
 const resultRegistry = new Map<string, Promise<AudioSynthesisResult>>();
 const requestParams = new Map<string, { speakerId?: number, speed?: number, volume?: number }>();
-const requestStartTimes = new Map<string, number>();
+const requestProcessingStartTimes = new Map<string, number>();
 
 function syncUI() {
   renderDashboard(state);
@@ -261,7 +261,6 @@ async function initProvider(options: {
       };
 
       requestParams.set(requestId, mergedOptions);
-      requestStartTimes.set(requestId, performance.now());
       const p = originalSynthesize(text, mergedOptions);
       resultRegistry.set(requestId, p);
       return p;
@@ -274,6 +273,7 @@ async function initProvider(options: {
         if (!row) row = createResultCard(event.text, event.requestId);
         activeUIRows.add(event.requestId);
       } else if (event.state === 'processing') {
+        requestProcessingStartTimes.set(event.requestId, performance.now());
         if (row) {
           row.classList.replace('pending', 'active');
           const modelCell = row.querySelector('.model-cell')!;
@@ -402,16 +402,16 @@ function markRowDone(row: HTMLElement, _requestId: string, result?: AudioSynthes
   if (result) {
     const audioLen = result.durationMs;
     const genDur = result.metadata.generationTimeMs || 0;
-    const startTime = requestStartTimes.get(_requestId) || performance.now();
-    const totalLatency = performance.now() - startTime;
+    const startTime = requestProcessingStartTimes.get(_requestId) || performance.now();
+    const activeLatency = performance.now() - startTime;
 
     const rtfWasm = genDur > 0 ? (audioLen / genDur) : 0;
-    const rtfEff = totalLatency > 0 ? (audioLen / totalLatency) : 0;
+    const rtfEff = activeLatency > 0 ? (audioLen / activeLatency) : 0;
 
     statusCell.textContent = `${Math.round(audioLen)}ms`;
     audioLenCell.textContent = `${Math.round(audioLen)}ms`;
     genDurCell.textContent = genDur > 0 ? `${Math.round(genDur)}ms` : '-';
-    latCell.textContent = `${Math.round(totalLatency)}ms`;
+    latCell.textContent = `${Math.round(activeLatency)}ms`;
     rtfWasmCell.textContent = rtfWasm > 0 ? rtfWasm.toFixed(2) : '-';
     rtfEffCell.textContent = rtfEff > 0 ? rtfEff.toFixed(2) : '-';
     

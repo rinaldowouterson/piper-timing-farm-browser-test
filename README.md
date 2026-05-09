@@ -2,6 +2,12 @@
 
 Integrated verification suite for the `piper-timing-farm-browser` library. This platform provides a robust environment for validating real-time speech synthesis performance, high-concurrency orchestration, and runtime reliability across diverse browser environments.
 
+## Live Verification
+
+The latest stable version of the verification console is available at:
+**[https://rinaldowouterson.github.io/piper-timing-farm-browser-test/](https://rinaldowouterson.github.io/piper-timing-farm-browser-test/)**
+
+
 ## Overview
 
 This repository serves as the canonical verification platform for the Piper Timing Farm Browser library. It implements a suite of integrated scenarios designed to verify:

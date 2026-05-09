@@ -215,7 +215,7 @@ async function initProvider(options: {
   const modelId = options.modelId || modelSelect.value;
   
   if (!provider) {
-    provider = createPiperProvider();
+    provider = createPiperProvider({ debug: true });
     LogHelpers.lifecycle.providerCreated(logger!);
 
     provider.onLog((log) => {

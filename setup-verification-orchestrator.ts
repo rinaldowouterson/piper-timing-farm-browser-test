@@ -355,6 +355,9 @@ function createResultCard(text: string, requestId: string): HTMLElement {
     <td class="speed-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${speedStr}x</td>
     <td class="volume-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${volStr}x</td>
     <td class="sentence-cell" title="${escapeHtml(text)}">${escapedText}</td>
+    <td class="rtf-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
+    <td class="audio-len-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
+    <td class="gen-dur-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
     <td class="status-cell" style="font-family: var(--font-mono); color: var(--text-dim);">-</td>
     <td class="callback-cell" style="font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-dim);">-</td>
     <td>
@@ -380,6 +383,9 @@ function markRowDone(row: HTMLElement, _requestId: string, result?: AudioSynthes
   const speakerCell = row.querySelector('.speaker-cell')!;
   const statusCell = row.querySelector('.status-cell')!;
   const callbackCell = row.querySelector('.callback-cell')!;
+  const rtfCell = row.querySelector('.rtf-cell')!;
+  const audioLenCell = row.querySelector('.audio-len-cell')!;
+  const genDurCell = row.querySelector('.gen-dur-cell')!;
   const playBtn = row.querySelector('.play-btn') as HTMLButtonElement;
   const cancelBtn = row.querySelector('.cancel-row-btn') as HTMLButtonElement;
 
@@ -388,7 +394,18 @@ function markRowDone(row: HTMLElement, _requestId: string, result?: AudioSynthes
   speakerCell.textContent = result?.metadata.speakerId !== undefined ? String(result.metadata.speakerId) : '-';
   
   if (result) {
-    statusCell.textContent = `${Math.round(result.durationMs)}ms`;
+    const audioLen = result.durationMs;
+    const genDur = result.metadata.generationTimeMs || 0;
+    const rtf = genDur > 0 ? (audioLen / genDur) : 0;
+
+    statusCell.textContent = `${Math.round(audioLen)}ms`;
+    audioLenCell.textContent = `${Math.round(audioLen)}ms`;
+    genDurCell.textContent = genDur > 0 ? `${Math.round(genDur)}ms` : '-';
+    rtfCell.textContent = rtf > 0 ? rtf.toFixed(2) : '-';
+    
+    if (rtf > 0) {
+      rtfCell.setAttribute('style', `font-family: var(--font-mono); font-size: 0.7rem; color: ${rtf > 1 ? 'var(--success)' : 'var(--warning)'}; font-weight: 700;`);
+    }
     
     if (result.callbackResult) {
       callbackCell.textContent = result.callbackResult.bytes ? `${(result.callbackResult.bytes / 1024).toFixed(1)} KB` : 'DONE';

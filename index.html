@@ -197,8 +197,11 @@
         <button id="btnCancelAll" class="knob danger" style="width: 100%;">
           <span class="knob-value" style="text-align: center; width: 100%;">PURGE QUEUE</span>
         </button>
+        <button id="btnPurgeStorage" class="knob danger" style="width: 100%; margin-top: 0.5rem; background: linear-gradient(135deg, hsla(0, 80%, 50%, 0.2), hsla(0, 80%, 30%, 0.3)); border-color: hsla(0, 100%, 50%, 0.4);">
+          <span class="knob-value" style="text-align: center; width: 100%; color: #ff8080;">PURGE ALL STORAGE</span>
+        </button>
         <p style="font-size: 0.6rem; color: var(--text-dim); margin-top: 1rem; line-height: 1.4;">
-          Forces total termination of active WASM threads and clears all pending results. Use only if queue is blocked.
+          Forces total termination of active WASM threads and clears all pending results. "PURGE ALL STORAGE" will wipe all cached models and infrastructure binaries from OPFS.
         </p>
       </section>
     </aside>

@@ -22,6 +22,9 @@ import { renderDashboard } from './src/utils/resolve-dashboard-updates';
 
 const btnInit = document.getElementById('btnInit') as HTMLButtonElement;
 const btnStop = document.getElementById('btnStop') as HTMLButtonElement;
+const btnCancelAll = document.getElementById('btnCancelAll') as HTMLButtonElement;
+const btnPurgeStorage = document.getElementById('btnPurgeStorage') as HTMLButtonElement;
+const btnClearLogs = document.getElementById('btnClearLogs') as HTMLButtonElement;
 const modelSelect = document.getElementById('modelSelect') as HTMLSelectElement;
 const auditBody = document.getElementById('auditBody')!;
 const logStream = document.getElementById('logStream')!;
@@ -34,14 +37,12 @@ const knobHotswap = document.getElementById('knobHotswap') as HTMLButtonElement;
 const knobFlashFlood = document.getElementById('knobFlashFlood') as HTMLButtonElement;
 const knobPivot = document.getElementById('knobPivot') as HTMLButtonElement;
 const toggleCallback = document.getElementById('toggleCallback') as HTMLInputElement;
-const btnCancelAll = document.getElementById('btnCancelAll') as HTMLButtonElement;
 const knobExtendedRegular = document.getElementById('knobExtendedRegular') as HTMLButtonElement;
 const knobExtendedStress = document.getElementById('knobExtendedStress') as HTMLButtonElement;
 const speakerIdInput = document.getElementById('speakerIdInput') as HTMLInputElement;
 const speedInput = document.getElementById('speedInput') as HTMLInputElement;
 const volumeInput = document.getElementById('volumeInput') as HTMLInputElement;
 
-const btnClearLogs = document.getElementById('btnClearLogs') as HTMLButtonElement;
 const btnExportLogs = document.getElementById('btnExportLogs') as HTMLButtonElement;
 
 // ============================================
@@ -67,6 +68,8 @@ const API_METHODS = [
   { id: 'provider.synthesize', label: 'provider.synthesize' },
   { id: 'provider.cancelAllSynthesis', label: 'provider.cancelAll' },
   { id: 'provider.updatePendingOptions', label: 'provider.updateOptions' },
+  { id: 'provider.clearPiperModelCache', label: 'provider.clearModels' },
+  { id: 'provider.clearPiperInfraCache', label: 'provider.clearInfra' },
   { id: 'createPiperProvider', label: 'createPiperProvider' }
 ];
 
@@ -560,6 +563,42 @@ btnCancelAll.onclick = () => {
   trackApiUsage('provider.cancelAllSynthesis');
   logger?.log({ category: 'SYNTHESIS', level: 'WARNING', event: 'PURGE', data: { count: activeUIRows.size } });
   provider.cancelAllSynthesis();
+};
+
+btnPurgeStorage.onclick = async () => {
+  const confirmed = confirm("⚠ DANGER: This will permanently delete ALL cached models and WASM infrastructure from OPFS storage. You will need to re-download everything on next use.\n\nProceed?");
+  
+  if (confirmed) {
+    initLogger(); // Ensure logger exists
+    logger?.log({ category: 'LIFECYCLE', level: 'WARNING', event: 'NUKE_STORAGE', data: { action: 'WIPE_OPFS' } });
+    
+    // We must have a provider to call these, or if not we can use the library exports directly
+    // But since the provider manages the lifecycle and locks, we use its instance methods if it exists
+    if (!provider) {
+      provider = createPiperProvider({ debug: true });
+    }
+
+    try {
+      btnPurgeStorage.disabled = true;
+      btnPurgeStorage.textContent = "WIPING...";
+      
+      trackApiUsage('provider.clearPiperModelCache');
+      await provider.clearPiperModelCache();
+      
+      trackApiUsage('provider.clearPiperInfraCache');
+      await provider.clearPiperInfraCache();
+      
+      logger?.log({ category: 'LIFECYCLE', level: 'SUCCESS', event: 'NUKE_COMPLETE', data: { status: 'STORAGE_EMPTY' } });
+      alert("Storage successfully purged. The application will now reload to ensure a clean state.");
+      window.location.reload();
+    } catch (err: any) {
+      logger?.log({ category: 'LIFECYCLE', level: 'ERROR', event: 'NUKE_FAILED', data: { error: err.message } });
+      alert("Failed to purge storage: " + err.message);
+    } finally {
+      btnPurgeStorage.disabled = false;
+      btnPurgeStorage.innerHTML = '<span class="knob-value" style="text-align: center; width: 100%; color: #ff8080;">PURGE ALL STORAGE</span>';
+    }
+  }
 };
 
 // ============================================

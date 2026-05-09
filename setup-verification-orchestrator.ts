@@ -80,6 +80,7 @@ let verifier: FifoVerifier | null = null;
 const activeUIRows = new Set<string>();
 const resultRegistry = new Map<string, Promise<AudioSynthesisResult>>();
 const requestParams = new Map<string, { speakerId?: number, speed?: number, volume?: number }>();
+const requestStartTimes = new Map<string, number>();
 
 function syncUI() {
   renderDashboard(state);
@@ -260,6 +261,7 @@ async function initProvider(options: {
       };
 
       requestParams.set(requestId, mergedOptions);
+      requestStartTimes.set(requestId, performance.now());
       const p = originalSynthesize(text, mergedOptions);
       resultRegistry.set(requestId, p);
       return p;
@@ -355,7 +357,9 @@ function createResultCard(text: string, requestId: string): HTMLElement {
     <td class="speed-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${speedStr}x</td>
     <td class="volume-cell" style="font-family: var(--font-mono); font-size: 0.7rem;">${volStr}x</td>
     <td class="sentence-cell" title="${escapeHtml(text)}">${escapedText}</td>
-    <td class="rtf-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
+    <td class="lat-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
+    <td class="rtf-eff-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
+    <td class="rtf-wasm-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
     <td class="audio-len-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
     <td class="gen-dur-cell" style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);">-</td>
     <td class="status-cell" style="font-family: var(--font-mono); color: var(--text-dim);">-</td>
@@ -383,7 +387,9 @@ function markRowDone(row: HTMLElement, _requestId: string, result?: AudioSynthes
   const speakerCell = row.querySelector('.speaker-cell')!;
   const statusCell = row.querySelector('.status-cell')!;
   const callbackCell = row.querySelector('.callback-cell')!;
-  const rtfCell = row.querySelector('.rtf-cell')!;
+  const rtfWasmCell = row.querySelector('.rtf-wasm-cell')!;
+  const rtfEffCell = row.querySelector('.rtf-eff-cell')!;
+  const latCell = row.querySelector('.lat-cell')!;
   const audioLenCell = row.querySelector('.audio-len-cell')!;
   const genDurCell = row.querySelector('.gen-dur-cell')!;
   const playBtn = row.querySelector('.play-btn') as HTMLButtonElement;
@@ -396,15 +402,24 @@ function markRowDone(row: HTMLElement, _requestId: string, result?: AudioSynthes
   if (result) {
     const audioLen = result.durationMs;
     const genDur = result.metadata.generationTimeMs || 0;
-    const rtf = genDur > 0 ? (audioLen / genDur) : 0;
+    const startTime = requestStartTimes.get(_requestId) || performance.now();
+    const totalLatency = performance.now() - startTime;
+
+    const rtfWasm = genDur > 0 ? (audioLen / genDur) : 0;
+    const rtfEff = totalLatency > 0 ? (audioLen / totalLatency) : 0;
 
     statusCell.textContent = `${Math.round(audioLen)}ms`;
     audioLenCell.textContent = `${Math.round(audioLen)}ms`;
     genDurCell.textContent = genDur > 0 ? `${Math.round(genDur)}ms` : '-';
-    rtfCell.textContent = rtf > 0 ? rtf.toFixed(2) : '-';
+    latCell.textContent = `${Math.round(totalLatency)}ms`;
+    rtfWasmCell.textContent = rtfWasm > 0 ? rtfWasm.toFixed(2) : '-';
+    rtfEffCell.textContent = rtfEff > 0 ? rtfEff.toFixed(2) : '-';
     
-    if (rtf > 0) {
-      rtfCell.setAttribute('style', `font-family: var(--font-mono); font-size: 0.7rem; color: ${rtf > 1 ? 'var(--success)' : 'var(--warning)'}; font-weight: 700;`);
+    if (rtfWasm > 0) {
+      rtfWasmCell.setAttribute('style', `font-family: var(--font-mono); font-size: 0.7rem; color: ${rtfWasm > 1 ? 'var(--success)' : 'var(--warning)'}; font-weight: 700;`);
+    }
+    if (rtfEff > 0) {
+      rtfEffCell.setAttribute('style', `font-family: var(--font-mono); font-size: 0.7rem; color: ${rtfEff > 1 ? 'var(--success)' : 'var(--warning)'}; font-weight: 700;`);
     }
     
     if (result.callbackResult) {

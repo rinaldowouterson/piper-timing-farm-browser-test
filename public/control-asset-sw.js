@@ -613,7 +613,7 @@ async function le(e) {
 async function F(e, t) {
 	return (await le(e)).toLowerCase() === t.toLowerCase();
 }
-var I = "infra", L = "voices", R = "270aa371f9f528df0363f012b8d878267bf41531ff0a6008fb26e552dceec654", z = "c7c20fa6b34d8a1780d6fe3f56e5bf7af48bb80b2adb0b06e4a19b7e684d19a0", B = !1, V = new BroadcastChannel("piper-gate-debug");
+var I = "infra", L = "voices", R = "270aa371f9f528df0363f012b8d878267bf41531ff0a6008fb26e552dceec654", ue = "e807cae3cf22186f87c8497b03caacccb0373674afee7f078d2762bce2b4d24d", z = self.location.pathname.substring(0, self.location.pathname.lastIndexOf("/") + 1) + "piper-gate/", B = !1, V = new BroadcastChannel("piper-gate-debug");
 V.onmessage = (e) => {
 	B = e.data.debug;
 };
@@ -627,10 +627,10 @@ var U = {
 	"piper_phonemize.data": "29f1025eb23a5b5c192cd14a6efbce4509402ff265405072ee6f7d1a09b78f8c",
 	"piper_phonemize.js": "fef0c2fc442d24fdef5c7c7cc37d5da2314407640fe11ab1bfe347c723dff19b",
 	"piper_phonemize.wasm": "b777cd107a91d2bcc6a1ea46f2c26a662a7407394fe84589198aeaa83dd7a9d6",
-	"process-piper-synthesis.worker.js": z,
+	"process-piper-synthesis.worker.js": ue,
 	"piper-model-cards.json": R,
 	"piper-callback.js": "c769d1f2b9d5ee7f0cb97858d68a21c2e1fc86312981d71f098560060e13f81b"
-}, ue = {
+}, de = {
 	"ort-wasm-simd-threaded.wasm": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.wasm",
 	"ort.wasm.min.mjs": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort.wasm.min.mjs",
 	"ort-wasm-simd-threaded.mjs": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort-wasm-simd-threaded.mjs",
@@ -638,7 +638,7 @@ var U = {
 	"piper_phonemize.js": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.js",
 	"piper_phonemize.wasm": "https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize.wasm"
 }, W = /* @__PURE__ */ new Map(), G = /* @__PURE__ */ new Map(), K = !1, q = null;
-async function de() {
+async function fe() {
 	if (!K) return q || (q = (async () => {
 		let e = await Y("piper-model-cards.json");
 		if (!e.ok) throw Error(`[piper-gate] Index resolution failed: ${e.status} ${await e.text()}`);
@@ -655,7 +655,7 @@ async function de() {
 		q = null;
 	}), q);
 }
-var fe = {
+var pe = {
 	".wasm": "application/wasm",
 	".mjs": "text/javascript",
 	".js": "text/javascript",
@@ -663,7 +663,7 @@ var fe = {
 	".onnx": "application/octet-stream",
 	".json": "application/json"
 }, J = new BroadcastChannel("piper-download-progress");
-function pe(e, t) {
+function me(e, t) {
 	let n = t instanceof Error;
 	J.postMessage({
 		type: "error",
@@ -673,7 +673,7 @@ function pe(e, t) {
 		code: n ? t.name : "UNKNOWN_ERROR"
 	});
 }
-function me(e) {
+function he(e) {
 	return !!(e in U || e.endsWith(".onnx") || e.endsWith(".onnx.json"));
 }
 P.addEventListener("install", () => {
@@ -682,28 +682,28 @@ P.addEventListener("install", () => {
 	e.waitUntil(P.clients.claim());
 }), P.addEventListener("fetch", (e) => {
 	let t = new URL(e.request.url);
-	if (t.origin === P.location.origin && !t.pathname.startsWith("/piper-gate/")) {
+	if (t.origin === P.location.origin && !t.pathname.startsWith(z)) {
 		let e = t.pathname.split("/").pop() || "";
-		me(e) && H("warn", `[piper-gate] [Path Deviation] Detected request for Piper asset '${e}' at non-gateway path: ${t.pathname}. This request bypasses Service Worker integrity verification and OPFS caching. Please update the requester to use: /piper-gate/.../${e}`);
+		he(e) && H("warn", `[piper-gate] [Path Deviation] Detected request for Piper asset '${e}' at non-gateway path: ${t.pathname}. This request bypasses Service Worker integrity verification and OPFS caching. Please update the requester to use: ${z}.../${e}`);
 	}
-	if (t.origin !== P.location.origin || !t.pathname.startsWith("/piper-gate/")) return;
-	let n = t.pathname.slice(12);
+	if (t.origin !== P.location.origin || !t.pathname.startsWith(z)) return;
+	let n = t.pathname.slice(z.length);
 	if (n) {
 		if (e.request.method === "DELETE") {
-			e.respondWith(ve(n));
+			e.respondWith(ye(n));
 			return;
 		}
-		e.respondWith(he(n, e.request));
+		e.respondWith(ge(n, e.request));
 	}
 });
-async function he(e, t) {
+async function ge(e, t) {
 	try {
 		let n = e.split("/");
 		if (n.length !== 2) return new Response(`[piper-gate] Invalid path format: ${e}`, { status: 400 });
 		let [r, i] = n;
-		return r === "infra" ? await Y(i) : r === "voices" ? await ge(i, t) : new Response(`[piper-gate] Unknown directory: ${r}`, { status: 400 });
+		return r === "infra" ? await Y(i) : r === "voices" ? await _e(i, t) : new Response(`[piper-gate] Unknown directory: ${r}`, { status: 400 });
 	} catch (t) {
-		return pe(e, t), new Response(t instanceof Error ? t.message : String(t), {
+		return me(e, t), new Response(t instanceof Error ? t.message : String(t), {
 			status: 500,
 			statusText: "Piper Gateway Resolver Error"
 		});
@@ -718,7 +718,7 @@ async function Y(e) {
 		H("log", `[piper-gate] [Stale Cache] OPFS integrity mismatch for '${e}'. Deleting stale entry to trigger re-fetch.`), await Q(I, e);
 	}
 	try {
-		let n = await fetch(`/piper-gate/infra/${e}`);
+		let n = await fetch(`${z}infra/${e}`);
 		if (n.ok) {
 			let r = await n.arrayBuffer();
 			if (await F(r, t)) return await Z(I, e, r) ? H("log", `[piper-gate] [Cache Restored] '${e}' verified and cached.`) : H("warn", `[piper-gate] [Cache Miss] '${e}' verified but not cached (storage issue).`), $(r, { filename: e });
@@ -727,7 +727,7 @@ async function Y(e) {
 	} catch {
 		H("log", `[piper-gate] Local file '${e}' unavailable. Fetching from CDN.`);
 	}
-	let r = ue[e];
+	let r = de[e];
 	if (!r) return new Response(`[piper-gate] No CDN URL for infra asset: ${e}`, { status: 404 });
 	try {
 		let n = await fetch(r);
@@ -738,9 +738,9 @@ async function Y(e) {
 		return H("error", `[piper-gate] CDN fetch failed for ${e}:`, t), new Response(`[piper-gate] CDN unreachable for: ${e}`, { status: 502 });
 	}
 }
-async function ge(e, t) {
+async function _e(e, t) {
 	let n = e.endsWith(".onnx.json"), r = n ? e.slice(0, -10) : e.slice(0, -5), i = n ? "config" : "onnx", a = t.headers.get("x-piper-cache-download") === "true";
-	await de();
+	await fe();
 	let o = W.get(r), s = o ? i === "onnx" ? o.onnx : o.config : null;
 	if (!s) return H("error", `[piper-gate] No SHA-256 available for voice: ${e}`), new Response(`[piper-gate] SHA-256 required for voice asset: ${e}. Model must be present in piper-model-cards.json.`, { status: 403 });
 	let c = await X(L, e);
@@ -751,7 +751,7 @@ async function ge(e, t) {
 	let l = G.get(r), u = l ? i === "onnx" ? l.onnx : l.config : null;
 	if (!u) return new Response(`[piper-gate] No source URL for voice: ${e}`, { status: 404 });
 	try {
-		let n = _e(u), r, i = 0;
+		let n = ve(u), r, i = 0;
 		if (n) {
 			H("log", `[piper-gate] Using HF Hub download for: ${e}`);
 			let a = await ce({
@@ -803,7 +803,7 @@ async function ge(e, t) {
 		return t instanceof Error && t.name === "AbortError" ? new Response(`[piper-gate] Download aborted: ${e}`, { status: 499 }) : (H("error", `[piper-gate] Download failed for ${e}:`, t), new Response(`[piper-gate] Download failed for: ${e}`, { status: 502 }));
 	}
 }
-function _e(e) {
+function ve(e) {
 	let t = e.match(/^https:\/\/huggingface\.co\/([^/]+\/[^/]+)\/resolve\/([^/]+)\/(.+)$/);
 	return t ? {
 		repo: t[1],
@@ -833,7 +833,7 @@ async function Q(e, t) {
 		H("warn", `[piper-gate] OPFS delete failed for ${e}/${t}:`, n);
 	}
 }
-async function ve(e) {
+async function ye(e) {
 	try {
 		let t = await navigator.storage.getDirectory();
 		if (e === "voices/" || e === "voices") {
@@ -877,7 +877,7 @@ function $(e, t = {}) {
 		"Cross-Origin-Resource-Policy": "same-origin",
 		...i
 	};
-	return n && (a["Content-Type"] = fe[n.substring(n.lastIndexOf("."))] ?? "application/octet-stream"), new Response(e, {
+	return n && (a["Content-Type"] = pe[n.substring(n.lastIndexOf("."))] ?? "application/octet-stream"), new Response(e, {
 		status: r,
 		headers: a
 	});

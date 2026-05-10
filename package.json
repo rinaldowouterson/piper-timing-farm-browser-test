@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:clean": "vite --force",
+    "build": "vite build",
+    "simulate": "npm run build && rm -rf dist_temp && mv dist dist_temp && mkdir -p dist/test-subfolder && mv dist_temp/* dist/test-subfolder/ && rm -rf dist_temp && npx http-server dist -p 8080",
     "test": "vitest run",
     "check": "tsc --noEmit"
   },
@@ -14,7 +16,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "piper-timing-farm-browser": "1.0.1-beta.1"
+    "piper-timing-farm-browser": "^1.0.1-beta.10"
   },
   "devDependencies": {
     "typescript": "^6.0.2",

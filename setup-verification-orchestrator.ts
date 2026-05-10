@@ -33,9 +33,6 @@ const downloadMonitor = document.getElementById('downloadMonitor')!;
 
 // Knobs
 const knobMemory = document.getElementById('knobMemory') as HTMLButtonElement;
-const knobHotswap = document.getElementById('knobHotswap') as HTMLButtonElement;
-const knobFlashFlood = document.getElementById('knobFlashFlood') as HTMLButtonElement;
-const knobPivot = document.getElementById('knobPivot') as HTMLButtonElement;
 const toggleCallback = document.getElementById('toggleCallback') as HTMLInputElement;
 const knobExtendedRegular = document.getElementById('knobExtendedRegular') as HTMLButtonElement;
 const knobExtendedStress = document.getElementById('knobExtendedStress') as HTMLButtonElement;
@@ -246,9 +243,16 @@ async function initProvider(options: {
       });
     });
 
-    // Monkey-patch synthesize to ensure all calls (even from scenarios) are tracked in the registry
+    // Monkey-patch methods to track API usage and handle UI state
+    const originalInit = provider.init.bind(provider);
+    provider.init = (o) => {
+      trackApiUsage('provider.init');
+      return originalInit(o);
+    };
+
     const originalSynthesize = provider.synthesize.bind(provider);
     provider.synthesize = (text, options) => {
+      trackApiUsage('provider.synthesize');
       const requestId = options?.requestId || `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       
       const defaultSpeed = parseFloat(speedInput.value) || 1.0;
@@ -267,6 +271,30 @@ async function initProvider(options: {
       const p = originalSynthesize(text, mergedOptions);
       resultRegistry.set(requestId, p);
       return p;
+    };
+
+    const originalCancelAll = provider.cancelAllSynthesis.bind(provider);
+    provider.cancelAllSynthesis = () => {
+      trackApiUsage('provider.cancelAllSynthesis');
+      return originalCancelAll();
+    };
+
+    const originalUpdateOptions = provider.updatePendingOptions.bind(provider);
+    provider.updatePendingOptions = (o) => {
+      trackApiUsage('provider.updatePendingOptions');
+      return originalUpdateOptions(o);
+    };
+
+    const originalClearModels = provider.clearPiperModelCache.bind(provider);
+    provider.clearPiperModelCache = () => {
+      trackApiUsage('provider.clearPiperModelCache');
+      return originalClearModels();
+    };
+
+    const originalClearInfra = provider.clearPiperInfraCache.bind(provider);
+    provider.clearPiperInfraCache = () => {
+      trackApiUsage('provider.clearPiperInfraCache');
+      return originalClearInfra();
     };
 
     provider.onQueueStatus(async (event) => {
@@ -305,7 +333,6 @@ async function initProvider(options: {
   }
   
   LogHelpers.lifecycle.initRequested(logger!, modelId, 2);
-  trackApiUsage('provider.init');
   
   try {
     await provider.init({
@@ -463,7 +490,6 @@ function markRowCancelled(row: HTMLElement, _requestId: string) {
 
 async function queueSynthesis(text: string, options: { speakerId?: number; speed?: number; volume?: number; silent?: boolean } = {}) {
   if (!provider || !audioCtx || !logger) return;
-  trackApiUsage('provider.synthesize');
   
   // Options are merged in the monkey-patch, so we can just pass them directly
   const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -494,18 +520,8 @@ async function queueSynthesis(text: string, options: { speakerId?: number; speed
 
 knobMemory.onclick = () => {
   initLogger();
-  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: MEMORY' } });
+  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: BENCHMARK_RTF' } });
   runScenario(stressScenarios.find(s => s.id === 'memory-pressure')!);
-};
-knobHotswap.onclick = () => {
-  initLogger();
-  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: HOTSWAP' } });
-  runScenario(stressScenarios.find(s => s.id === 'hotswap-stress')!);
-};
-knobFlashFlood.onclick = () => {
-  initLogger();
-  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'STRESS: FLASH_FLOOD' } });
-  runScenario(stressScenarios.find(s => s.id === 'burst-concurrency')!);
 };
 
 knobExtendedRegular.onclick = () => {
@@ -519,35 +535,7 @@ knobExtendedStress.onclick = () => {
   runScenario(extendedScenarios.find(s => s.id === 'extended-concurrency')!);
 };
 
-knobPivot.onclick = () => {
-  initLogger();
-  logger?.log({ category: 'TEST', level: 'DEBUG', event: 'UI_CLICK', data: { action: 'LIVE_UPDATE: PIVOT', speakerId: speakerIdInput.value } });
-  if (!provider) return;
-  trackApiUsage('provider.updatePendingOptions');
-  const speakerId = parseInt(speakerIdInput.value) || 0;
-  const speed = parseFloat(speedInput.value) || 1.0;
-  const volume = parseFloat(volumeInput.value) || 1.0;
-  
-  logger?.log({ category: 'LIFECYCLE', level: 'INFO', event: 'PIVOT', data: { detail: `Applying Speaker ${speakerId}, Speed ${speed}x, Vol ${volume}x to waiting queue` } });
-  
-  provider.updatePendingOptions({ speakerId, speed, volume });
-
-  // Visually update the UI for all pending rows
-  Array.from(activeUIRows).forEach(reqId => {
-    const row = document.getElementById(`row-${reqId}`);
-    if (row && row.classList.contains('pending') && !row.classList.contains('active')) {
-      const spkCell = row.querySelector('.speaker-cell');
-      const spdCell = row.querySelector('.speed-cell');
-      const volCell = row.querySelector('.volume-cell');
-      if (spkCell) spkCell.textContent = String(speakerId);
-      if (spdCell) spdCell.textContent = `${speed.toFixed(1)}x`;
-      if (volCell) volCell.textContent = `${volume.toFixed(1)}x`;
-      
-      // Update our internal tracking map so markRowDone still shows it
-      requestParams.set(reqId, { ...requestParams.get(reqId), speakerId, speed, volume });
-    }
-  });
-};
+// Removed legacy Pivot knob handler
 
 toggleCallback.onchange = async () => {
   if (!provider) return;
@@ -560,7 +548,6 @@ toggleCallback.onchange = async () => {
 
 btnCancelAll.onclick = () => {
   if (!provider) return;
-  trackApiUsage('provider.cancelAllSynthesis');
   logger?.log({ category: 'SYNTHESIS', level: 'WARNING', event: 'PURGE', data: { count: activeUIRows.size } });
   provider.cancelAllSynthesis();
 };
@@ -582,10 +569,7 @@ btnPurgeStorage.onclick = async () => {
       btnPurgeStorage.disabled = true;
       btnPurgeStorage.textContent = "WIPING...";
       
-      trackApiUsage('provider.clearPiperModelCache');
       await provider.clearPiperModelCache();
-      
-      trackApiUsage('provider.clearPiperInfraCache');
       await provider.clearPiperInfraCache();
       
       logger?.log({ category: 'LIFECYCLE', level: 'SUCCESS', event: 'NUKE_COMPLETE', data: { status: 'STORAGE_EMPTY' } });
@@ -758,7 +742,7 @@ btnInit.onclick = () => {
 
 async function updateSpeakerBounds() {
   try {
-    const response = await fetch('/piper-gate/infra/piper-model-cards.json');
+    const response = await fetch('piper-gate/infra/piper-model-cards.json');
     const cards = await response.json();
     const activeModel = cards.find((c: any) => c.id === modelSelect.value);
     if (activeModel) {

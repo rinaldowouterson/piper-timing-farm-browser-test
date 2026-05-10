@@ -67,6 +67,18 @@ aside, main {
   gap: 1.5rem;
 }
 
+main > header.module {
+  padding: 1rem;
+}
+
+main > section.module {
+  min-height: 400px;
+}
+
+main > footer.module {
+  min-height: 250px;
+}
+
 /* --- Components --- */
 .module {
   background: var(--bg-card);
@@ -357,7 +369,7 @@ td {
 
 /* --- Log Stream --- */
 .log-stream {
-  min-height: 200px;
+  flex: 1;
   background: hsla(0, 0%, 0%, 0.3);
   border-radius: 12px;
   padding: 1rem;
@@ -365,6 +377,7 @@ td {
   font-size: 0.7rem;
   overflow-y: auto;
   border: 1px solid var(--border-subtle);
+  min-height: 150px;
 }
 
 .log-line { margin-bottom: 0.4rem; border-left: 2px solid transparent; padding-left: 0.5rem; }
@@ -432,6 +445,17 @@ input:checked + .toggle-bg .toggle-dot { left: 23px; background: var(--accent); 
 
   .log-stream {
     flex: 1;
+    min-height: 0;
+  }
+
+  main > section.module {
+    flex: 2;
+    min-height: 0;
+  }
+
+  main > footer.module {
+    flex: 1;
+    min-height: 0;
   }
 }
 

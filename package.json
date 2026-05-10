@@ -16,7 +16,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "piper-timing-farm-browser": "^1.0.1-beta.10"
+    "piper-timing-farm-browser": "^1.0.1"
   },
   "devDependencies": {
     "typescript": "^6.0.2",

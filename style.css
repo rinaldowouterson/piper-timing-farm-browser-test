@@ -41,32 +41,30 @@ body {
   background-image: 
     radial-gradient(circle at 50% 0%, hsla(195, 100%, 50%, 0.08), transparent 60%),
     radial-gradient(circle at 100% 100%, hsla(155, 100%, 45%, 0.04), transparent 40%);
+  background-attachment: fixed;
   color: var(--text-primary);
   margin: 0;
   padding: 0;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
   display: flex;
   justify-content: center;
+  overflow-x: hidden;
 }
 
 /* --- Layout --- */
 .console-wrapper {
-  display: grid;
-  grid-template-columns: 360px 1fr 340px;
-  grid-template-rows: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
-  padding: 1.5rem;
+  padding: 1rem;
   width: 100%;
   max-width: 1800px;
-  height: 100%;
 }
 
 aside, main {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  overflow: hidden;
 }
 
 /* --- Components --- */
@@ -260,15 +258,17 @@ input[type="number"]:focus {
 
 /* --- Audit Table --- */
 .audit-container {
-  flex: 1;
-  overflow-y: auto;
+  width: 100%;
+  overflow-x: auto;
   margin-top: 1rem;
   border-radius: 12px;
   background: hsla(0, 0%, 0%, 0.2);
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
   width: 100%;
+  min-width: 1000px;
   border-collapse: collapse;
 }
 
@@ -357,7 +357,7 @@ td {
 
 /* --- Log Stream --- */
 .log-stream {
-  flex: 1;
+  min-height: 200px;
   background: hsla(0, 0%, 0%, 0.3);
   border-radius: 12px;
   padding: 1rem;
@@ -404,6 +404,56 @@ td {
 
 input:checked + .toggle-bg { background: var(--accent-glow); border-color: var(--accent); }
 input:checked + .toggle-bg .toggle-dot { left: 23px; background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+
+/* --- Responsive Overrides --- */
+@media (min-width: 1200px) {
+  body {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .console-wrapper {
+    display: grid;
+    grid-template-columns: 360px 1fr 340px;
+    grid-template-rows: 1fr;
+    padding: 1.5rem;
+    height: 100%;
+  }
+
+  aside, main {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .audit-container {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .log-stream {
+    flex: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  main header > div {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  
+  main header .knob {
+    width: 100%;
+  }
+
+  .orbit-container {
+    width: 120px;
+    height: 120px;
+  }
+
+  .orbit-status {
+    font-size: 1.2rem;
+  }
+}
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 2px; }

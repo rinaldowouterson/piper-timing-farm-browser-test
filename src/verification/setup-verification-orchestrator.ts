@@ -5,16 +5,16 @@
  */
 
 import { createPiperProvider } from 'piper-timing-farm-browser';
-import { playRawAudio, stopAudio } from './process-audio-playback';
-import { createAudioSequencer } from './control-audio-sequencer';
+import { playRawAudio, stopAudio } from '../audio/process-audio-playback';
+import { createAudioSequencer } from '../audio/control-audio-sequencer';
 import { AudioSynthesisResult, DownloadState } from 'piper-timing-farm-browser';
-import { createProcessLogger, ProcessLogger, LogHelpers } from './process-logging';
+import { createProcessLogger, ProcessLogger, LogHelpers } from '../logging/process-logging';
 import { createFifoVerifier, FifoVerifier } from './control-fifo-verifier';
-import { stressScenarios } from './src/scenarios/resolve-stress-scenarios';
-import { extendedScenarios } from './src/scenarios/setup-extended-scenarios';
-import { TestScenario } from './src/scenarios/types';
-import { DashboardState } from './types/ui-state';
-import { renderDashboard } from './src/utils/resolve-dashboard-updates';
+import { stressScenarios } from '../scenarios/resolve-stress-scenarios';
+import { extendedScenarios } from '../scenarios/setup-extended-scenarios';
+import { TestScenario } from '../scenarios/types';
+import { DashboardState } from '../../types/ui-state';
+import { renderDashboard } from '../ui/resolve-dashboard-updates';
 
 // ============================================
 // UI Elements

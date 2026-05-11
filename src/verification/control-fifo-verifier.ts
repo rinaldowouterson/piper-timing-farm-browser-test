@@ -5,8 +5,8 @@
  * testing the Parallel FIFO Sequencer feature of Piper Timing Farm.
  */
 
-import { ProcessLogger, LogHelpers } from './process-logging';
-import { TestResult, PiperProvider } from './src/scenarios/types';
+import { ProcessLogger, LogHelpers } from '../logging/process-logging';
+import { TestResult, PiperProvider } from '../scenarios/types';
 
 export interface FifoVerifier {
   recordRequest: (requestId: string) => void;

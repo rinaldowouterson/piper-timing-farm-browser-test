@@ -1,6 +1,6 @@
 import { TestScenario, PiperProvider } from "./types";
-import { createFifoVerifier, runFifoTest } from "../../control-fifo-verifier";
-import { ProcessLogger } from "../../process-logging";
+import { createFifoVerifier, runFifoTest } from "../verification/control-fifo-verifier";
+import { ProcessLogger } from "../logging/process-logging";
 
 // Note: These scenarios require a logger instance, which is provided by the orchestrator.
 // However, the TestScenario interface's execute method only takes the provider.
